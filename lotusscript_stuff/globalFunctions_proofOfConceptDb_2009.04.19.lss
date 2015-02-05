@@ -1,0 +1,497 @@
+'globalFunctions: 
+
+Option Public
+Option Explicit
+Use "globalConstantsLibrary"
+
+%INCLUDE "lsconst.lss" 
+
+
+
+Class YearTimeChangeSegments
+%REM
+ *CREATED: 2008.05.02 by Rich Wheadon/matrix
+ *PURPOSE: Provide an Object into which we can feed a string
+ *		of variables and use to adjust date in LS from variables.
+%END REM
+	Years As Integer
+	months As Integer
+	days As Integer
+	hours As Integer
+	minutes As Integer
+	seconds As Integer
+	milliseconds As Integer	
+	
+	
+	Sub new( timeSegments As String )
+%REM
+' *	Segments  Years:Months:Days:Hours:Minutes:Seconds
+' *  Passing in 2:6 would set 
+ *	Years=2
+ *	Months=6
+ *	Days=0 (integer default)
+ *	Hours=0 (integer default)
+ *	Minutes=0 (integer default)
+ *	Seconds=0 (integer default)
+%END REM
+'		On Error Goto YearTimeChangeSegmentsNewErh
+		Dim timeSegmentArray As Variant
+		Dim i As Integer
+		timeSegmentArray = Split(timeSegments, ":")
+		If Isarray( timeSegmentArray ) Then
+			Redim Preserve timeSegmentArray(5)
+			If validateTypeCast( Cstr(timeSegmentArray(0)), "NUMBER" ) Then years = Cint(timeSegmentArray(0))
+			If validateTypeCast( Cstr(timeSegmentArray(1)), "NUMBER" ) Then months = Cint(timeSegmentArray(1))
+			If validateTypeCast( Cstr(timeSegmentArray(2)), "NUMBER" ) Then days = Cint(timeSegmentArray(2))
+			If validateTypeCast( Cstr(timeSegmentArray(3)), "NUMBER" ) Then hours = Cint(timeSegmentArray(3))
+			If validateTypeCast( Cstr(timeSegmentArray(4)), "NUMBER" ) Then minutes = Cint(timeSegmentArray(4))
+			If validateTypeCast( Cstr(timeSegmentArray(5)), "NUMBER" ) Then seconds = Cint(timeSegmentArray(5))
+		Else
+			Error 2008, "Type Mismatch on time segment parameters"
+		End If		
+		Exit Sub
+YearTimeChangeSegmentsNewErh:
+		Print "ERROR YearTimeChangeSegments.New Line:" + Cstr(Erl) + " Message:" + Error$
+		Exit Sub
+	End Sub
+	
+	Function adjustedDate( dateIN As NotesDateTime) As NotesDateTime
+		On Error Goto adjustedDateErh
+		If dateIn Is Nothing Then Error 2008, "DateTime is null"
+		
+' *	takes in a date and a parameterized type to yield an adjusted date.
+		Dim adjDate As NotesDateTime
+		Dim dateINString As String
+		dateINString = Format$( dateIN.DateOnly, "mm/dd/yyyy hh:mm:ss")
+		
+		Set adjDate = New NotesDateTime( dateInString )
+		Set adjustedDate = adjDate
+		
+		adjDate.AdjustYear years, True 
+		adjDate.AdjustMonth months, True 
+		adjDate.AdjustDay days, True 
+		adjDate.AdjustHour hours, True 
+		adjDate.AdjustMinute minutes, True 
+		adjDate.AdjustSecond seconds, True 
+		Set adjustedDate = adjDate
+		Exit Function
+adjustedDateErh:
+		Print "ERROR YearTimeChangeSegments.adjustedDate Line:" + Cstr(Erl) + " Message:" + Error$
+		Exit Function
+	End Function	
+	
+End Class 'YearTimeChangeSegments
+
+Function fLocalKeywordLU( DefKey$, is_System As Boolean ) As Variant
+%REM
+/**
+ *CREATED: 2005.04.21 by Rich Wheadon
+ *PURPOSE: Blackbox Keyword lookup to the local library
+ *RETURN VALUE:
+ *	If an error occurs it will return the null string ("")
+ *	otherwise returns a string array of the values found.
+ **/
+%END REM
+' ****************************************
+' *	<STANDARD_SETUP_BLOCK>
+	Dim sRoutineName As String
+	sRoutineName = "globalFunctions.fLocalKeywordLU"
+	On Error Goto erh
+' *	</STANDARD_SETUP_BLOCK>
+' ****************************************
+	Dim sessCur As New NotesSession
+	Dim dbCur As NotesDatabase
+	Set dbCur = sessCur.CurrentDatabase
+	Dim vwGKeywords As NotesView
+	Dim docGKeywords As NotesDocument	
+	Dim KWKeys(1) As String
+	Dim itmCur As notesItem
+	Dim arryKWVals As Variant
+	Dim sysType As String
+' ****************************************	
+' *	<DEPENDENCY_PUNCHLIST>
+	If( is_system = True ) Then
+		sysType = "SYSTEM"
+	Else
+		sysType = "USER"
+	End If
+	Dim sKWView As String
+	Dim sKWField As String
+	Dim dbKW As notesDatabase
+	Set dbKW = dbCur
+	sKWView = "globalKeywords"
+	sKWField = "keywords"
+	KWKeys(0) = sysType
+	KWKeys(1) = DefKey$
+	If is_system = False Then
+		KWKeys(0) = "USER"
+	End If
+' *	</DEPENDENCY_PUNCHLIST>
+' ****************************************
+	If dbKW Is Nothing Then Error 2005, "No Database found"
+	Set vwGKeywords = dbKW.GetView(sKWView)
+	If vwGKeywords Is Nothing Then Error 2005, "No view found"
+	Set docGKeywords = vwGKeywords.GetDocumentByKey( KWKeys, True )
+	If docGKeywords Is Nothing Then Error 2005, "No document found"
+	Set itmCur = docGKeywords.GetFirstItem(sKWField)
+	arryKWVals = itmCur.values
+	fLocalKeywordLU = arryKWVals
+	
+	Exit Function
+erh:
+	Print "ERROR:"+sRoutineName+"(Line "+Cstr(Erl)+") : " + Error$
+	fLocalKeywordLU = ""
+	Exit Function
+End Function
+Function formatReplicaId(tmpId As String) As String
+' *	Used to rip the colon out of repID, saves a few strokes, kinda
+	Dim sStripped As String
+	sStripped = Cstr(Replace(tmpID, ":", ""))
+	formatReplicaID = sStripped
+End Function
+
+
+Public Function initDBStubByID( pvtstubServer As String, pvtstubDBRepID As String, pvterrorMSG As String ) As notesdatabase
+%REM
+/**
+ *CREATED:2005.03.10 by Rich Wheadon
+ *PURPOSE:Blackbox handling of getting the database by repID
+ *		which is pretty stupid when you consider Lotus has
+ *		this all handled in the openByReplicaID except the ermsg
+ *		...but it is better than the current 8 subs doing virtually
+ *		the same thing and a line savings of about 24 lines + code
+ *		reuse. (all savings are now lost in this documentation though)
+ *HISTORY:
+ **/	
+%END REM
+	Dim sRoutineName As String
+	sRoutineName = "globalFunctions.initDBStubByID"
+	On Error Goto erh
+	Dim pvtStubDb As New NotesDatabase("","")
+	Set initDBStubByID = Nothing
+	If  Not pvtstubDb.OpenByReplicaID( pvtstubServer, pvtstubDBRepID) Then
+		'Msgbox pvterrorMSG, 16, gcMB_0 
+		'Call fWriteLog( filterLog, "FATAL", pvterrorMSG, 0 )
+		Error 2005, pvtErrorMSG
+	End If
+	Set initDBStubByID = pvtstubDB
+	Exit Function
+erh:
+	Set initDBStubByID = Nothing
+	If Not(filterLog Is Nothing) Then Call fWriteLog( filterLog, "FATAL", sRoutineName + " Error:"+Error$+" - Line:" + Cstr(Erl),0)
+	Exit Function
+End Function
+Function fCalculateViewDependencies( docIN As NotesDocument)
+	
+End Function
+
+
+Function IsCommonASCII(CharacterCode As Integer) As Boolean
+%REM
+Determines whether a particular ASCII character code is in the set: 
+lowercase + uppercase + numeral.
+Written by Chuck Connell (www.chc-3.com) on 10/30/2002. 
+You may re-use this code in any way, so long as you include this line to give me credit.
+*2007.03.26 -raw-
+*	This function excludes special chars but includes all symbols and chars and space
+%END REM
+	On Error Goto erh
+	Const FIRST_SYMBOL = 32
+	Const LAST_SYMBOL = 126
+	IsCommonASCII = False
+	Dim is_OK As Boolean
+	is_OK = IsCommonASCII
+	is_OK = isStrictAscii(characterCode)
+' * we are looser than strict, so if it passed strict we don't need to check.
+	If (is_OK = False ) And (CharacterCode >= FIRST_SYMBOL And CharacterCode <= LAST_SYMBOL) Then 
+		is_OK = True
+	End If
+	
+	IsCommonASCII = is_OK
+	Exit Function
+erh:
+	IsCommonASCII = False
+	Exit Function
+End Function
+
+
+Function fRemoteKeywordLU( DefKeys As Variant, remoteKWDB As NotesDatabase, _
+remoteKWViewName As String, remoteKWFieldName As String) As Variant
+%REM
+/**
+ *CREATED: 2007.04.16 by Rich Wheadon
+ *PURPOSE: Blackbox Keyword lookup to a remote library
+ *RETURN VALUE:
+ *	If an error occurs it will return the null string ("")
+ *	otherwise returns a string array of the values found.
+ *HISTORY:
+ *	2007.05.11 -raw-
+ *		When a values list is passed in we will see really strange things happen if 
+ *		non-ascii or extended ascii comes in.
+ **/
+%END REM
+' ****************************************
+' *	<STANDARD_SETUP_BLOCK>
+	Dim sRoutineName As String
+	sRoutineName = "globalFunctions.fRemoteKeywordLU"
+	On Error Goto erh
+' *	</STANDARD_SETUP_BLOCK>
+' ****************************************
+	Dim sessCur As New NotesSession
+	Dim dbCur As NotesDatabase
+	Set dbCur = sessCur.CurrentDatabase
+	Dim vwGKeywords As NotesView
+	Dim docGKeywords As NotesDocument	
+	Dim KWKeys As Variant
+	Dim itmCur As notesItem
+	Dim arryKWVals As Variant
+	Dim sysType As String
+	Dim i As Integer
+	Dim j As Integer
+	Dim flatKeys As String
+	Dim workingCode As Integer
+' ****************************************	
+	If Isarray(defKeys) Then
+' *	Cast the values to a string
+		For i = 0 To Ubound(defKeys)
+			defKeys(i) = Cstr(defKeys(i))
+		Next
+		flatKeys = Cstr(Implode(defKeys))
+	Else
+		If Not(Fulltrim(Cstr(defKeys)) = "") Then
+			defKeys = Cstr(defKeys)
+		End If
+		flatKeys = defKeys
+	End If
+' ****************************************	
+	If remoteKWDB Is Nothing Then Error 2005, "No Database Object Sent in."
+	Set vwGKeywords = remoteKWDB.GetView(remoteKWViewName)
+	If vwGKeywords Is Nothing Then Error 2005, "No view found by that name(" + _
+	remoteKWViewName + ")"
+	Set docGKeywords = vwGKeywords.GetDocumentByKey( defKeys, True )
+	If docGKeywords Is Nothing Then Error 2005, "No document matching keys found."
+	Set itmCur = docGKeywords.GetFirstItem(remoteKWFieldName)
+	If itmCur Is Nothing Then Error 2005, "No such item found.(" + _
+	remoteKWFieldName + ")"
+	arryKWVals = itmCur.values
+	Dim valueChecker As String
+	valueChecker = Cstr(Implode(arryKWVals))
+	For j = 1 To Len(valueChecker)
+		workingCode = Asc(Mid(valueChecker,j,1))
+		If Not( isCommonAscii(workingCode) Or workingCode=13 Or workingCode=10 ) Then Error 2005, _
+		"Bad Character Found [" + flatKeys + "] asc(" + Cstr(workingCode) + ")"
+	Next
+	fRemoteKeywordLU = arryKWVals
+	Exit Function
+erh: 
+	Print "ERROR:"+sRoutineName+"(Line "+Cstr(Erl)+") : " + Error$
+	fRemoteKeywordLU = ""
+	Exit Function
+End Function
+
+
+Function IsStrictASCII(CharacterCode As Integer) As Boolean
+%REM
+Determines whether a particular ASCII character code is in the set: 
+lowercase + uppercase + numeral.
+Written by Chuck Connell (www.chc-3.com) on 10/30/2002. 
+You may re-use this code in any way, so long as you include this line to give me credit.
+*2007.03.26 -raw-
+*	This function passes only on 0-9; a-z; A-Z
+%END REM
+	On Error Goto erh
+	
+	Const FIRST_UPPER = 65
+	Const LAST_UPPER = 90
+	Const FIRST_LOWER = 97
+	Const LAST_LOWER = 122
+	Const FIRST_NUMERAL = 48
+	Const LAST_NUMERAL = 57
+	
+	IsStrictASCII = False
+	Dim is_OK As Boolean
+	is_OK = IsStrictASCII
+	If (CharacterCode >= FIRST_UPPER And CharacterCode <= LAST_UPPER) Then 
+		is_OK = True
+	End If
+	
+	If (CharacterCode >= FIRST_LOWER And CharacterCode <= LAST_LOWER) Then
+		is_OK = True
+	End If
+	
+	If (CharacterCode >= FIRST_NUMERAL And CharacterCode <= LAST_NUMERAL)  Then
+		is_OK = True
+	End If
+	
+	IsStrictASCII = is_OK
+	Exit Function
+erh:
+	IsStrictASCII = False
+	Exit Function
+End Function
+
+
+Function extendStringArray( arrayIN() As String, newString As String ) As Boolean
+	On Error Goto erh
+' *	This function builds arrays iteratively as called.
+' *	!No empty string inputs allowed
+' *	!Automatically overwrites an upperbound empty if it exists. (auto trim)
+	extendStringArray = False
+	If newString = "" Then Exit Function
+	Dim upperbound As Integer
+	upperbound = Ubound(arrayIN)
+	If Not(arrayIN(upperbound) = "") Then
+		upperbound = upperbound + 1
+		Redim Preserve arrayIN(upperbound)
+	End If
+	arrayIN(upperbound)=newString
+	extendStringArray = True
+	Exit Function
+erh:
+	If Err=200 Then
+' *	The array is not initialized
+		Redim arrayIN(0)
+		arrayIN(0)=""
+		upperbound=Ubound(arrayIN)
+		Resume Next
+	Else
+		Print "Error globalFunctions.extendStringArray Line:" + Cstr(Erl) + _
+		" Message:" + Error$ + "/" + Cstr(Err)
+		extendStringArray = False
+	End If
+	
+	Exit Function
+End Function
+
+
+Function returnDocDateFieldString( docIN As notesDocument, theFieldName As String ) As String
+' *******************************
+' *	Standard setup block *
+	Dim sRoutineName As String
+	Dim logString As String
+	sRoutineName = "Timesheet Routines.returnDocDateFieldString"
+	On Error Goto erh
+' *	End of standard setup block *
+' ********************************	
+' *	Checks to see if the field is there and converts the date value if it can.
+' *	Returns a mm/dd/yyyy string if the date will cast
+' *		nothing if the field is missing, is empty, or won't cast
+	If docIN Is Nothing Then Error 2007, "No document passed in"
+	If theFieldName = "" Then Error 2007, "No field name passed in."
+	Dim dateOutcheck As String
+	Dim dateOutcheckDT As notesDateTime
+	
+	If docIN.HasItem(theFieldName ) Then
+		If Isdate( docIN.GetItemValue(theFieldName)(0)) Then
+			Set dateOutcheckDT = New NotesDateTime( Cstr( docIN.GetItemValue(theFieldName)(0)))
+			dateOutcheck = dateOutcheckDT.dateOnly
+		End If
+	End If
+	
+	returnDocDateFieldString = dateOutcheck
+	Exit Function
+erh:
+	returnDocDateFieldString = ""
+	logString =  sRoutineName + " Error:"+Error$+" - Line:" + Cstr(Erl)
+	
+	Print logString		
+	
+	Exit Function
+End Function
+
+
+Function validateTypeCast( strVal As String, strType As String ) As Boolean
+%REM
+Should return a False if the value can NOT be cast to the type
+only acceptable types allowed
+types: NUMBER, DATE
+%END REM
+	On Error Goto erh
+	validateTypeCast = False
+	Dim safeType As String
+	
+	Select Case Ucase(strType)
+	Case "NUMBER"
+		If Isnumeric( strVal ) Then validateTypeCast = True	
+	Case "DATE"
+		If Isdate( strVal ) Then validateTypeCast = True
+	Case Else
+		Error 2007, "Unknown type for function"
+	End Select
+	
+	Exit Function
+erh:
+	validateTypeCast = False	
+	Exit Function
+End Function
+
+
+Function formatFieldValueToTimestampString( itemIN As notesItem ) As String
+%REM
+ *	The purpose of this function is to provide single 
+ *		interface to handle making timestamp vals.
+ *		(you know... less duplicated code)
+ *INPUT: takes in a notesItem
+ *OUTPUT: a string containing the timestamp, or empty string if it can't be done
+%END REM
+'Format$(tmpDoc.GetItemValue(f)(0), "YYYY-MM-DD HH:NN:SS") + ".000000"
+	On Error Goto erh
+	Dim theVal As String
+	theVal = Cstr(itemIN.Values(0))
+	Dim dateCast As String
+	formatFieldValueToTimeStampString = ""
+	If Isdate(theVal) Then
+		dateCast = Format$( theVal, "yyyy-mm-dd hh:nn:ss.000000")
+	End If
+	
+	formatFieldValueToTimeStampString = dateCast
+	Exit Function
+erh:
+	Print "Error in globalFunctions.convertFieldValueToTimestampString: Line:" + Cstr(Erl) + " Message:" + Error$
+	Exit Function
+End Function
+
+
+Function splitPath( pathIN As String ) As Variant
+%REM
+ *	OS aware split - only windows uses the "\" in a path
+To get: platform$ = notesSession.Platform
+Legal values
+	"Macintosh"	Macintosh
+	"MS-DOS"		MS-DOS
+	"Netware"		NetWare
+	"OS/2v1"		OS/2 16-bit
+	"OS/2v2"		OS/2 32-bit 
+	"OS/400"		OS/400
+	"Windows/16"	Windows 16-bit
+	"Windows/32"	Windows 32-bit
+	"UNIX"		UNIX (Sun, SCO, AIX)
+	"Linux"		UNIX
+%END REM
+	Dim currentSession As New NotesSession
+	Dim platform As String
+	Dim pathSep As String
+	platform = currentSession.Platform
+	pathSep = "/"
+	If Instr(Ucase(platform), "WINDOWS")>0 Then pathSep = "\"
+	splitPath = Split(pathIN, pathSep)
+	
+End Function
+
+
+Function checkForMount( mount As String ) As Boolean
+	On Error Goto erh
+	Dim fileName As String
+	Dim is_goodMount As Boolean
+	is_goodMount=True
+	checkForMount = is_goodMount
+	fileName$ = Dir$(mount, 0)
+	Print "Mount exists:" + "[" + mount + "]" + Cstr(is_goodMount)
+	Exit Function
+erh:
+	is_goodMount=False
+	If Err=76 Then checkForMount=is_goodMount
+	Print "Mount problems:" + "[" + mount + "]" + Cstr(is_goodMount)
+	Exit Function
+End Function
+

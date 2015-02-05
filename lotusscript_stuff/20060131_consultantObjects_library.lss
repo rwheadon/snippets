@@ -1,0 +1,2200 @@
+'consultantObjects: 
+'an example of custom class usage in Lotus Notes.
+Option Public
+Option Explicit 
+Use "globalFunctions" 
+'	****************************************************
+'	****************************************************
+'				GLOBALVARIABLES
+'	****************************************************
+'	****************************************************	
+'	***THREE FREEFLOWING GLOBAL!!!, DON'T MESS UP ALL THE 
+'	***HARD WORK BY STARTING TO CRANK SCADS OF GLOBALS
+'	*** IN HERE AGAIN 
+' 	****************************************************
+Public gClasses As globalClassHolder
+Public gSession As NotesSession
+Public gReport As reportBuilder
+
+Public Class globalClassHolder
+'	****************************************************
+'	****************************************************
+'				GLOBALCLASSHOLDER
+'	****************************************************
+'	****************************************************	
+%REM
+/*CREATED: 2005.07.23 by Rich Wheadon
+ *PURPOSE: Allow abstract storage of product classes
+%END REM
+	lstStorageDB List As NotesDatabase
+	lstStorageVW List As NotesView
+	lstStorageDoc List As NotesDocument
+	CLASSInit As Boolean
+	lstStorageVWInit As Boolean
+	lstStorageDBInit As Boolean
+	lstStorageDOCInit As Boolean
+	Sub new
+		CLASSInit = True
+	End Sub
+	Function insertVWClass( IC As NotesView, ICName As String ) As Boolean
+		If CLASSInit = False Then
+			insertVWClass = CLASSInit
+			Exit Function
+		End If
+		lstStorageVWInit = True
+		Dim sIC As String
+		insertVWClass = False
+		sIC = Ucase( ICName )
+		Set lstStorageVW( sIC ) = IC
+		If( Iselement( lstStorageVW( sIC ) ) ) Then
+			insertVWClass = True
+		End If		
+	End Function
+	Function insertDocClass(IC As notesDocument, ICName As String ) As Boolean
+		If CLASSInit = False Then
+			insertDocClass = CLASSInit
+			Exit Function
+		End If
+		lstStorageDOCInit = True
+		Dim sIC As String
+		insertDocClass = False
+		sIC = Ucase( ICName )
+		Set lstStorageDoc( sIC ) = IC
+		If( Iselement( lstStorageDoc( sIC ) ) ) Then
+			insertDocClass = True
+		End If		
+	End Function
+	Function insertDBClass( IC As notesDatabase, ICName As String ) As Boolean
+		If CLASSInit = False Then
+			insertDBClass = CLASSInit
+			Exit Function
+		End If
+		lstStorageDBInit = True
+		On Error Goto insertdbClassErh
+		Dim sIC As String
+		insertDBClass = False
+		sIC = Ucase( ICName )
+		Set lstStorageDB( sIC ) = IC
+		If( Iselement( lstStorageDB( sIC ) ) ) Then
+			insertDBClass = True
+		End If
+		Exit Function
+insertdbClassErh:
+		insertDBClass = False
+		Exit Function
+	End Function
+	Function getVWClass( request As String ) As notesView
+		If CLASSInit = False Then
+			Set getVWClass = Nothing
+			Exit Function
+		End If
+		On Error Goto getVWClassErh
+		Dim sIR As String
+		sIR = Ucase( request )
+		If( lstStorageVWInit = False ) Then
+			Error 2005, "List not initialized"			
+		End If
+		Set getVWClass = Nothing
+		If( Iselement( lstStorageVW( sIR ) ) ) Then
+			Set getVWClass = lstStorageVW( sIR )
+		Else
+			Set getVWClass = Nothing
+		End If
+		Exit Function
+getVWClassErh:
+		Set getVWClass = Nothing
+		fwriteLog filterLog, "ERROR", "Error in globalClassHolder.getVWClass line " + _
+		Cstr(Erl) + " - " + Error$, 0
+		Exit Function
+	End Function	
+	Function getDOCClass( request As String ) As notesDocument
+		If CLASSInit = False Then
+			Set getDOCClass = Nothing
+			Exit Function
+		End If
+		On Error Goto getDOCClassErh
+		Dim sIR As String
+		sIR = Ucase( request )
+		If( lstStorageDOCInit = False ) Then
+			Error 2005, "List not initialized"			
+		End If
+		Set getDOCClass = Nothing
+		If( Iselement( lstStorageDOC( sIR ) ) ) Then
+			Set getDOCClass = lstStorageDOC( sIR )
+		Else
+			Set getDOCClass = Nothing
+		End If
+		Exit Function
+getDOCClassErh:
+		Set getDOCClass = Nothing
+		fwriteLog filterLog, "ERROR", "Error in globalClassHolder.getDOCClass line " + _
+		Cstr(Erl) + " - " + Error$, 0
+		Exit Function
+	End Function	
+	Function getDBClass( request As String ) As notesDatabase
+		If CLASSInit = False Then
+			Set getDBClass = Nothing
+			Exit Function
+		End If
+		On Error Goto getDBClassErh
+		Dim sIR As String
+		sIR = Ucase( request )
+		If( lstStorageDBInit = False ) Then
+			Error 2005, "List not initialized"			
+		End If
+		Set getDBClass = Nothing
+		If( Iselement( lstStorageDB( sIR ) ) ) Then
+			Set getDBClass = lstStorageDB( sIR )
+		Else
+			Set getDBClass = Nothing
+		End If
+		Exit Function
+getDBClassErh:
+		Set getDBClass = Nothing
+		fwriteLog filterLog, "ERROR", "Error in globalClassHolder.getDBClass line " + _
+		Cstr(Erl) + " - " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function checkClass( request As String ) As String
+		If CLASSInit = False Then
+			checkClass = ""
+			Exit Function
+		End If
+		On Error Goto checkClassErh
+		Dim sIR As String
+		Dim sNL As String
+		sNL = |
+|
+		checkClass = ""
+		sIR = Ucase( request )
+		If( sIR = "<ALLCLASSES>" ) Then
+' *	This is a full class report query
+			Dim scDB As stringBuilder
+			Dim scVW As stringBuilder
+			Dim scDoc As stringBuilder
+			Set scDB = New stringBuilder(sNL , "/*Global Database Objects ", "*/")
+			Set scVW = New stringBuilder(sNL , "/*Global View Objects ", "*/" )
+			Set scDoc = New stringBuilder( sNL , "/*Global Doc Objects ", "*/" )
+			Forall dbc In lstStorageDB
+				scDB.appendString( Listtag(dbc) + "[" + dbc.title + "]" )
+			End Forall
+			Forall vwc In lstStorageVW
+				scVW.appendString( Listtag(vwc) + "[" + vwc.name + "]" )
+			End Forall
+			Forall dcc In lstStorageDoc
+				scDoc.appendString( Listtag(dcc) + "[" + dcc.universalID + "]" )
+			End Forall
+			checkClass = scDB.getString + scVW.getString + scDoc.getString
+			Exit Function
+		End If
+		If( Iselement( lstStorageDB( sIR ) ) ) Then
+			checkClass = "DATABASE"
+		End If
+		If( Iselement( lstStorageVW( sIR ) ) ) Then
+			If( checkClass="" ) Then
+				checkClass = "VIEW"
+			Else
+				checkClass = checkClass + ";VIEW"
+			End If
+		End If
+		If( Iselement( lstStorageDOC( sIR ) ) ) Then
+			If( checkClass="" ) Then
+				checkClass = "DOCUMENT"
+			Else
+				checkClass = checkClass + ";DOCUMENT"
+			End If
+		End If
+		Exit Function
+checkClassErh:
+		fwriteLog filterLog, "ERROR", "Error in globalClassHolder.checkClass line " +_
+		Cstr(Erl) + " : " + Error$, 0
+		checkClass=False
+		Exit Function
+	End Function
+	Sub delete
+		If CLASSInit = False Then Exit Sub
+		Erase lstStorageDB
+		Erase lstStorageVW
+		Erase lstStorageDOC
+	End Sub
+	Sub flush
+		If CLASSInit = False Then Exit Sub
+		Erase lstStorageDB
+		Erase lstStorageVW
+		Erase lstStorageDOC
+	End Sub
+End Class
+
+Public Class msClient
+'	****************************************************
+'	****************************************************
+'				MSCLIENT
+'	****************************************************
+'	****************************************************
+%REM
+/*
+ *CREATED: 2005.07.26 by Rich Wheadon
+ *PURPOSE: Top level client object handling
+%END REM
+	docCBR As notesDocument
+	docCLNT As notesDocument
+	Public clntState As String
+	Public clntBillID As String
+	Public mtxOffice As String
+	Public is_Init As Boolean
+	
+	Sub new( docClntBill As notesDocument, docClntMS As notesDocument )
+		If docClntBill Is Nothing Then Exit Sub
+		If docClntMS Is Nothing Then Exit Sub
+		Set docCBR = docClntBill
+		Set docCLNT = docClntMS
+		clntState = Cstr(docCBR.clntState(0))
+		clntBillId = Cstr(docCBR.clntBillID(0))
+		mtxOffice = Cstr(docCLNT.officeNum(0))
+		is_Init = True
+	End Sub
+	Sub delete
+		is_Init = False
+	End Sub
+End Class
+
+Public Class Project
+'	****************************************************
+'	****************************************************
+'				PROJECT
+'	****************************************************
+'	****************************************************
+%REM
+/*
+ *CREATED: 2005.07.25 by Rich Wheadon
+ *PURPOSE: Project level function through which all engagements must pass
+ *		THIS IS IN PREPARATION OF MAS500 NOTES SIDE UPGRADES TO
+ *		SUPPORT CONSOLIDATED INVOICING.
+ *		Every engagement has only one project, but a project can have
+ *			many engagements potentially.
+ *		ATTRIBUTES OF A PROJECT ARE YET UNDEFINED, THOUGH IT SEEMS LIKE
+ *			VALUABLE ATTRIBUTES WILL BE:
+ *			PROJECTID (UNIQUE); LINE OF BUSINESS; MARKET;
+ *		THIS CLASS IMPLEMENTS AND MARSHALLS THE ENGAGEMENT CLASS
+ *		THIS CLASS BRINGS IN CLIENT BILL RECORD & PROJECT PARAMS.
+ */
+%END REM
+	is_Init As Boolean
+	Public projID As String
+	Public projName As String
+	Public projState As String
+	Public lstEng List As engagement
+	Public lstPP List As Integer
+	keyDel As String
+' *	Line of Business in this context does not align with clntLOB in MAS stuff
+	sLOB As String
+	sMKT As String
+	Sub new
+		is_Init = True
+		keyDel="!!"
+		sLOB = "MGSVCS"
+	End Sub
+	Sub flush
+		is_Init=False
+	End Sub
+	Sub delete
+		is_Init = False
+	End Sub
+	Function countEngagements As Integer
+		Dim iCtr As Integer
+		Forall ev In lstEng
+			iCtr = iCtr + 1
+		End Forall
+		countEngagements = iCtr
+	End Function
+	
+	Function queryEngagement( objCons As consultantBuilder ) As Boolean
+		On Error Goto queryEngagementErh
+		queryEngagement = False		
+		Dim keys As Variant
+' *	see if it is in our repository for this consultant
+		keys = fillKeysFromCB( objCons )
+		Dim key As String
+		Dim iKeyCtr As Integer
+		Dim is_goodKeys As Boolean
+		iKeyCtr = 0
+		is_goodKeys = validateKeys( keys ) 
+		If( is_goodKeys = False ) Then Error 2005, "Engagement Key is unusable"
+		key = Keys(0) + keyDel + keys(1) + keyDel + keys(2) + keyDel + keys(3)
+		If( Iselement( lstEng( Cstr(key) ) ) ) Then 
+			queryEngagement = True
+		End If
+		Exit Function
+queryEngagementErh:
+		queryEngagement = False
+		fWriteLog filterLog, "ERROR", "ERROR in project.queryEngagement Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function getEngagement( objCons As consultantBuilder ) As engagement
+		On Error Goto getEngagementErh
+		Dim curEngagement As engagement
+		Dim keys As Variant
+		Set getEngagement = curEngagement
+' *	see if it is in our repository for this consultant
+		keys = fillKeysFromCB( objCons )
+		Dim key As String
+		Dim iKeyCtr As Integer
+		Dim is_goodKeys As Boolean
+		
+		iKeyCtr = 0
+		is_goodKeys = validateKeys( keys )
+		If( is_goodKeys = False ) Then
+			Error 2005, "Engagement Key is unusable"
+		End If
+		
+		key = keys(0) + keyDel + keys(1) + keyDel + keys(2) + keyDel + keys(3)
+		If( Iselement( lstEng( Cstr(key) ) ) ) Then 
+			Set curEngagement = lstEng( key )
+		Else
+			Set curEngagement = Nothing
+		End If
+		Set getEngagement = curEngagement
+		Exit Function
+getEngagementErh:
+		fWriteLog filterLog, "ERROR", "ERROR in project.getEngagement Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Set getEngagement = Nothing
+		Exit Function
+	End Function
+	
+	Function fillKeysFromCB( objCons ) As Variant
+		On Error Goto fillKeysFromCBErh
+'		Dim deadKeys(3) As String
+		Dim keys(3) As String
+		'our key is candVMSID!!vendVMSID!!departmentCode!!costCenterCode
+		keys(0) = objCons.getFieldValue("CANDVMSID")
+		keys(1) = objCons.getFieldValue("VENDVMSID")
+		keys(2) = objCons.getFieldValue("DEPTCODE")
+		keys(3) = objCons.getFieldValue("COSTCENTERCODE")
+		fillKeysFromCB = keys
+		Exit Function
+fillKeysFromCBErh:
+		fillKeysFromCB = keys
+		fWriteLog filterLog, "ERROR", "ERROR in project.fillKeysFromCB Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function validateKeys( keys As Variant ) As Boolean
+		On Error Goto validateKeysErh
+		Dim is_goodKeys As Boolean
+		is_goodKeys = True
+		validateKeys = True
+		Dim iKeyCtr As Integer
+		iKeyCtr = 0
+		Forall v In keys
+			If( Cstr(v) = "" ) Then
+				is_goodKeys = False
+			Else
+				keys(iKeyCtr) = Cstr(v)
+			End If 
+			iKeyCtr=iKeyCtr+1
+		End Forall
+		iKeyCtr = 0
+		If( is_GoodKeys = False ) Then
+			Forall kv In keys
+				fwriteLog filterLog, "ERROR", "Keys(" + Cstr(iKeyCtr) + ")=" + kv, 0
+				iKeyCtr = iKeyCtr + 1
+			End Forall
+		End If
+		validateKeys = is_GoodKeys
+		Exit Function
+validateKeysErh:
+		validateKeys = False
+		fWriteLog filterLog, "ERROR", "ERROR in project.validateKeys Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function buildEngagement( tgtDB As notesDatabase, objCons As consultantBuilder ) As notesDocument
+		'Stop		
+		On Error Goto buildEngagementErh
+		Dim keys As Variant
+		Dim key As String
+		Dim is_Match As Boolean
+		Dim is_goodKeys As Boolean
+		is_GoodKeys = True
+		Dim iKeyCtr As Integer
+		Dim curEngagement As engagement
+' *	see if it is in our repository for this consultant
+		keys = fillKeysFromCB( objCons )
+		iKeyCtr = 0
+		is_goodKeys = validateKeys( keys )
+		If( is_goodKeys = False ) Then Error 2005, "Engagement Key is unusable"
+		key = Keys(0) + keyDel + keys(1) + keyDel + keys(2) + keyDel + keys(3)
+		If( Iselement( lstEng( Cstr(key) ) ) ) Then 
+			Set curEngagement = lstEng( key )
+			If( curEngagement.docEng Is Nothing ) Then
+				Set curEngagement = New engagement(tgtDB , objCons)
+				Set buildEngagement = curEngagement.docEng
+				Set lstEng( key ) = curEngagement
+			Else
+				Set curEngagement = lstEng(key)
+				Set buildEngagement = curEngagement.docEng
+			End If
+		Else
+			Set curEngagement = New engagement(tgtDB , objCons)
+			Set buildEngagement = curEngagement.docEng
+			Set lstEng( key ) = curEngagement
+		End If
+		Exit Function
+buildEngagementErh:
+		Set buildEngagement = Nothing
+		fWriteLog filterLog, "ERROR", "ERROR in project.buildEngagement Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function updateEngagement( docEngt As notesDocument ) As Boolean
+		On Error Goto updateEngagementErh
+		updateEngagement = False
+		Dim keys(3) As String
+		Dim key As String
+		Dim is_Match As Boolean
+		Dim is_goodKeys As Boolean
+		is_GoodKeys = True
+		Dim iKeyCtr As Integer
+		Dim curEngagement As engagement
+'our key is candVMSID!!vendVMSID!!departmentCode!!costCenterCode
+		keys(0) = Cstr(docEngt.candVMSID(0))
+		keys(1) = Cstr(docEngt.vendVMSID(0))
+		keys(2) = Cstr(docEngt.deptCode(0))
+		keys(3) = Cstr(docEngt.CostCenterCode(0))
+		iKeyCtr = 0
+		Forall v In keys
+			If( Cstr(v) = "" ) Then
+				is_goodKeys = False
+			Else
+				keys(iKeyCtr) = Cstr(v)
+			End If
+			iKeyCtr=iKeyCtr+1
+		End Forall
+		iKeyCtr = 0
+		If( is_GoodKeys = False ) Then
+			Forall kv In keys
+				fwriteLog filterLog, "ERROR", "Keys(" + Cstr(iKeyCtr) + ")=" + kv, 0
+				iKeyCtr = iKeyCtr + 1
+			End Forall
+		End If
+		If( is_goodKeys = False ) Then Error 2005, "Engagement Key is unusable"
+		key = Keys(0) + keyDel + keys(1) + keyDel + keys(2) + keyDel + keys(3)
+		If( Iselement( lstEng( key ) ) ) Then 
+			Set curEngagement = lstEng( key )
+			Set curEngagement.docEng = docEngt
+		Else
+			Error 2005, "Engagement could not be updated because it hasn't been built"
+		End If	
+		updateEngagement = True
+		Exit Function
+updateEngagementErh:
+		updateEngagement = False
+		fWriteLog filterLog, "ERROR", "ERROR in project.updateEngagement Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function returnEDoc( objEng As engagement ) As NotesDocument
+		Set returnEDoc = objEng.docEng
+	End Function
+	
+	Sub setEDoc( objEng As engagement, doc As NotesDocument )
+		Set objEng.docEng = doc
+	End Sub
+End Class
+
+Public Class consultantBuilder 
+'	****************************************************
+'	****************************************************
+'				CONSULTANTBUILDER
+'	****************************************************
+'	****************************************************
+%REM
+/*CREATED: 2005.07.23 by Rich Wheadon
+ *PURPOSE: to construct a single consultant object for referencing
+ *		in code.
+ *	This Class implements and addresses the consultantProfile class.
+%END REM
+	Public sConsTSType As String
+	Public sConsType As String
+	Public sConsVMSType As String
+	Public sConsBillID As String	
+	lstFldVals As Variant
+	Public lRecordNo As Long
+	consProf As consultantProfile
+	docCP As NotesDocument	
+	Sub new( bIsMTX As Boolean )
+		sConsType = "Pass Thru"
+		If( bIsMTX = True ) Then
+			sConsType = "MATRIX"
+		End If
+	End Sub
+	
+	Function updateValueArrays(trans As transaction, Byval lstV As Variant )
+' *	This function is responsible for updating the entire hierarchy
+' *		Currently ConsultantBuilder & Transaction
+' *		not doing a compare, just overwrite.
+		lstFldVals = lstV
+	End Function
+	
+	Function buildConsultantProfile( tgtDB As notesDatabase ) As NotesDocument
+		On Error Goto buildConsultantProfileErh
+		If( consProf Is Nothing ) Then
+			Set consProf = New consultantProfile(tgtDB , Me)
+			Set buildConsultantProfile = consProf.returnCPDoc
+			Set docCP = consProf.returnCPDoc
+			'Set docCP = buildConsultantProfile
+		Else
+			Set buildConsultantProfile = consProf.returnCPDoc
+		End If
+		Exit Function
+buildConsultantProfileErh:
+		Set buildConsultantProfile = Nothing
+		fWriteLog filterLog, "ERROR", "ERROR in consultantBuilder.buildConsultantProfile Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	
+	Function updateConsultantProfile( cpdoc As NotesDocument ) As Boolean
+		On Error Goto ehUpdateConsProf
+		updateConsultantProfile = False
+		Dim is_Done As Boolean
+		is_Done = True
+		If(cpdoc.HasItem( "TRANSID" )) Then
+			If Cstr(cpdoc.transID(0)) = "" Then
+				is_Done = False
+			End If
+		End If
+		If(cpdoc.HasItem( "CANDBILLID" ) ) Then
+			If Cstr(cpdoc.candbillid(0)) = "" Then
+				is_Done = False
+			End If
+		End If
+		If(is_Done = False) Then
+' *	If the ouchecked fields still aren't set then we don't have a complete CONS
+' *		and we will make sure it still sits in stub status, or becomes a stub
+' *		if someone tried to shortcut the rule in the document.
+			cpdoc.useLevel = "STUB"
+			Set docCP = cpdoc
+		Else
+			cpdoc.useLevel = "COMPLETE"
+			Set docCP = cpdoc 
+		End If
+		updateConsultantProfile = True
+		Exit Function
+ehUpdateConsProf:
+		updateConsultantProfile = False
+		Exit Function
+	End Function
+	Function importExpectedValues( docObj As NotesDocument ) As Boolean
+		On Error Goto ehImportExpectedValues
+		importExpectedValues = False
+' *	This function provides a controlled way to shuttle in specific field
+' *		values from VPR and CBR records for placement on the consultant 
+' *		profile document in AJC Lite.
+		Dim docIN As NotesDocument
+		Dim ai As Integer
+		Dim i1 As Integer
+		Dim i2 As Integer
+		i1 = 1
+		i2 = 0
+		Dim arryCBRitems() As String
+		Dim arryVPRitems() As String
+		Redim arryCBRitems(i1,1) 
+		Redim arryVPRitems(i2,1)
+		Dim sObjFld As String
+		Dim sCPFld As String
+		Dim itmObj As NotesItem
+		Dim itmCP As NotesItem
+' *	n,0 = src fldname
+' *	n,1 = tgt fldname
+' *	CLIENT PROFILE FIELDS TRANSFER
+' xxx	arryCBRitems(0,0) = "clntLOB"
+' xxx	arryCBRitems(0,1) = arryCBRitems(0,0)
+' xxx	arryCBRitems(1,0) = "clntMatrixRegion"
+' xxx	arryCBRitems(1,1) = arryCBRitems(1,0)
+' xxx	arryCBRitems(3,0) = "clntCurrency"
+' xxx	arryCBRitems(3,1) = "candCurrency"
+		arryCBRitems(0,0) = "officeNum"
+		arryCBRitems(0,1) = arryCBRitems(0,0)
+		arryCBRitems(1,0) = "clntDivision"
+		arryCBRitems(1,1) = arryCBRitems(1,0)
+' *	VENDOR PAY RECORD FIELDS TRANSFER
+' xxx	arryVPRitems(0,0) = "clntName"
+' xxx	arryVPRitems(0,1) = arryVPRitems(0,0)
+		arryVPRitems(0,0) = "vendId"
+		arryVPRitems(0,1) = arryVPRitems(0,0)
+		If docObj Is Nothing Then
+			Error 2005, gcDocE + gcStr_2 + gcStr_3
+		Else
+			Set docIN = getConsultantProfile
+		End If
+		If docIN Is Nothing Then Error 2005, gcDocE + gcStr_2 + gcStr_3
+		If Ucase(docObj.form(0)) = "CLNTBILLINFO" Then
+			For ai = 0 To Ubound(arryCBRitems)
+				sObjFld = arryCBRitems( ai,0 )
+				sCPFld = arryCBRitems( ai, 1)
+				If docObj.HasItem( sObjFld ) Then
+					Set itmObj = docObj.GetFirstItem( sObjFld )
+					Call docIN.ReplaceItemValue( sCPFld, itmObj.Values(0) )
+				End If
+			Next ai
+			importExpectedValues = True
+		End If
+		If Ucase(docObj.form(0)) = "CLNTPROF" Then
+			For ai = 0 To Ubound(arryVPRitems)
+				sObjFld = arryVPRitems( ai,0 )
+				sCPFld = arryVPRitems( ai, 1)
+				If docObj.HasItem( sObjFld ) Then
+					Set itmObj = docObj.GetFirstItem( sObjFld )
+					Call docIN.ReplaceItemValue( sCPFld, itmObj.Values(0) )
+				End If
+			Next ai
+			importExpectedValues = True			
+		End If
+		If importExpectedValues = True Then
+			Call updateConsultantProfile( docIN )
+		End If
+		Exit Function
+ehImportExpectedValues:
+		fWriteLog filterLog, "ERROR", "ERROR in consultantBuilder.importExpectedValues Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	Function getConsultantProfile As NotesDocument
+		On Error Goto getConsultantProfileErh
+		Set getConsultantProfile = docCP
+		Exit Function
+getConsultantProfileErh:
+		fwriteLOg filterLog, "ERROR", "ERROR:consultantBuilder.getConsultantProfile (Line " + Cstr(Erl) + _
+		") " + Error$, 0
+		Set getConsultantProfile = Nothing
+		Exit Function
+	End Function
+	
+	Function loadConsultantValues( lstVals List As Variant, lRECNO As Long ) As Boolean
+		On Error Goto loadConsultantValuesErh
+		lstFldVals = lstVals
+		lRecordNo = lRecNo
+		Me.sConsTSType = "TS"
+		If( lstVals("VMSTRANSID") <> lstVals("VMSORIGTRANSID") ) Then
+			Me.sConsTSType = "TSA"
+		End If
+		loadConsultantValues = True
+		Exit Function
+loadConsultantValuesErh:
+		fwriteLOg filterLog, "ERROR", "ERROR:consultantBuilder.loadConsultantValues (Line " + Cstr(Erl) + _
+		") " + Error$, 0
+		loadConsultantValues = False		
+		Exit Function
+	End Function
+	
+	Function getAllFieldValues As Variant
+		getAllFieldValues = lstFldVals
+	End Function
+	
+	Function getFieldValue( Byval sFldName As String ) As Variant
+		On Error Goto getFieldValueErh
+		Dim sFormat As String
+		sFormat = ( Ucase(sFldName) )
+		Dim v As Variant
+		If( Iselement( lstFldVals( sFormat ) ) ) Then
+			v = lstFldVals( sFormat )
+		End If
+		getFieldValue = v
+		Exit Function
+getFieldValueErh:
+		fwriteLOg filterLog, "ERROR", "ERROR:consultantBuilder.getFieldValue (Line " + Cstr(Erl) + _
+		") " + Error$, 0
+		getFieldValue = ""
+		Exit Function
+	End Function
+	Sub flush
+		Erase lstFldVals
+	End Sub
+	Sub delete
+		
+	End Sub
+End Class
+
+Public Class consultantProfile
+'	****************************************************
+'	****************************************************
+'				CONSULTANTPROFILE
+'	****************************************************
+'	****************************************************
+%REM
+/*
+ *CREATED: 2005.07.23 by Rich Wheadon
+ *PURPOSE: ConsultantProfile Object creation and controlled handling
+ *		This allows us to negotiate how we want the object handled 
+ *		rather than just passing a global around lots of subs.
+ *DEPENDENCIES:
+ *		The document contained in this class is marshalled by the 
+ *		consultantBuilder class and does not get directly passed out
+ *		to external objects except through the consultantBuilder
+ *		methods.
+ *	INTERFACING THIS CLASS DIRECTLY IS INAPPROPRIATE USE AND COULD
+ *		RESULT IN TOTALLY BROKEN CODE.
+ */
+%END REM
+	cpDocument As NotesDocument
+	
+	Sub new( tgtDB As NotesDatabase, cons As consultantBuilder )
+		On Error Goto newConsProfErh
+		Const transStatus = "Logged"
+		Const transCode = "COM" 
+		Const initialTrans = "Y"
+		Const candBusType = "Pass Thru"
+		Const candType = "Inc"
+		Const candIncType = "Prime Provider"
+		Const billControl = "Y"
+		Const billStatusLite = "Posted"
+		Const billStatusProd = "Logged"
+		Const createdBy = "MS Filter"
+		Dim curDateTime As New NotesDateTime(Now)
+' *	Create an empty consultant transaction record.
+' *>>>>>	Set ConsDoc = New NotesDocument(AJCLiteDB)
+' *	Set all the fields that are defined by constants.
+		Set cpDocument = New NotesDocument( tgtDB )
+		cpDocument.Form = "ConsMT"
+		cpDocument.TransStatus = transStatus
+		cpDocument.TransCode = transCode
+		cpDocument.InitialTrans = initialTrans
+		cpDocument.CandBusType = cons.sConsType
+		cpDocument.CandType = candType
+		cpDocument.CandIncType = candIncType
+		cpDocument.BillControl = billControl
+		cpDocument.BillStatusMS = billStatusLite
+		cpDocument.BillStatusPROD = billStatusProd
+		cpDocument.BillStatus = billStatusLite
+		cpDocument.CreatedBy = createdBy
+' *>>>>	cpDocument.CandVMSType = objConsultant.sCandVMSType
+		cpDocument.LogDateTime = curDateTime.DateOnly
+		cpDocument.TransEffectDate = curDateTime.DateOnly
+' *	Set all the fields that are defined by global variables.
+		cpDocument.CandLastName = Cstr(cons.getFieldValue("CANDLASTNAME" ) )
+		cpDocument.CandFirstName = Cstr(cons.getFieldValue("CANDFIRSTNAME" ) )
+		cpDocument.CandVMSID = Cstr(cons.getFieldValue("CANDVMSID" ) )
+		cpDocument.OfficeNum = Cstr(cons.getFieldValue("OFFICENUM") )
+		cpDocument.uselevel = "STUB"
+		cpDocument.ComputeWithForm True, False
+		Exit Sub
+newConsProfErh:
+		fWriteLog filterLog, "ERROR" , "ERROR in consultantProfile.new line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Sub
+	End Sub
+	Function returnCPDoc As NotesDocument
+		On Error Goto returnCPDocErh
+		If cpDocument Is Nothing Then Error 2005, "No cpDocument initialized yet"
+		Set returnCPDoc = cpDocument
+		Exit Function
+returnCPDocErh:
+		fWriteLog filterLog, "ERROR" , "ERROR in consultantProfile.returnCPDoc line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	Sub setCPDoc( cpdoc As NotesDocument )
+		On Error Goto setCPDocErh
+		Set cpDocument = cpdoc
+		Exit Sub
+setCPDocErh:
+		fWriteLog filterLog, "ERROR" , "ERROR in consultantProfile.setCPDoc line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Sub
+	End Sub
+	Sub flush
+		
+	End Sub
+	Sub delete
+		
+	End Sub
+End Class
+Public Class Engagement
+'	****************************************************
+'	****************************************************
+'				ENGAGEMENT
+'	****************************************************
+'	****************************************************
+%REM
+/*
+ *CREATED: 2005.07.25 by Rich Wheadon
+ *PURPOSE: Engagement level class. Accessed through consultantBuilder but created
+ *	through the project class.
+ *		THIS IS IN PREPARATION OF MAS500 NOTES SIDE UPGRADES.
+ *		AN ENGAGEMENT HAS ONLY ONE PROJECT.
+ *
+ *	INTERFACING THIS CLASS DIRECTLY IS INAPPROPRIATE USE AND COULD
+ *		RESULT IN TOTALLY BROKEN CODE.
+ */
+%END REM
+' * TEMPLATE CONSTANTS 
+	curDate As notesDatetime
+	Public docEng As notesDocument
+	is_Engagement As Boolean
+	lstTransactions List As transaction
+	candVMStype As String
+	is_MATRIX As Boolean
+	Public is_initialized As Boolean
+	Public docShell As notesDocument
+	Public docOrigTS As notesDocument
+	Sub new( tgtDB As notesDatabase, objCons As consultantBuilder )
+		is_initialized = False
+' *	***************************************
+' * 	<NEW_ENGAGEMENT>
+' *	***************************************
+' *	<STANDARD_SETUP_BLOCK>
+		Dim sRoutineName As String
+		sRoutineName = "filterCore.EngagementClass.NEW"
+		On Error Goto newEngagementErh
+' *	</STANDARD_SETUP_BLOCK>
+' *	***************************************
+		Const transStatus = "Logged"
+		Const transCode = "PRM"
+		Const initialTrans = "Y"
+		Const billControl = "Y"
+		Const billStatusLite = "Posted"
+		Const billStatusProd = "Logged"
+		Const createdBy = "MS Filter"
+		Const clntMgSvcs = "1"
+		Const clntProjSol = "0"
+		Const thirdPartyRef = "Y"
+		Const thirdPartyPay = 0
+		Dim consProf As NotesDocument
+		Dim docClientBill As notesDocument
+		Dim docVendorPay As notesDocument
+		Dim docMSClient As notesDocument
+		Dim profDoc As NotesDocument
+		Dim engType As String
+		Dim engStart As NotesDateTime
+		Dim sType As String	' *	Recyclable variable!!!
+		Dim engCode As Integer
+		Dim sWk As String
+		Set curdate = New notesDateTime( Cstr(Now) )
+		On Error Goto newEngagementErh
+		is_Engagement = False
+		candVMSType = objCons.sConsVMSType		
+		engType = objCons.sConsType
+		Set docEng = New notesDocument( tgtDB )
+		Set engStart = New notesDateTime( Cstr(objCons.getFieldValue("PROJSTARTDATE")))
+		docEng.Form = "ProjMT"
+		
+' *	Set all the fields that are defined by constants.
+		docEng.transType = engType
+		docEng.CandVMSType = candVMSType
+		docEng.projVMSType = candVMSType
+		docEng.TransStatus = transStatus
+		docEng.LogDateTime = curDate.DateOnly
+		docEng.TransCode = transCode
+		docEng.TransEffectDate = curDate.DateOnly
+		docEng.InitialTrans = initialTrans
+		
+		docEng.CreatedBy = createdBy
+		'docEng.CreatedOn = curDate.DateOnly
+		'docEng.CreatedAt = curDate.DateOnly
+		docEng.ClntMgSvcs = clntMgSvcs
+		docEng.ClntProjSol = clntProjSol
+		docEng.ThirdPartyRef = thirdPartyRef
+		docEng.OthPayAmt = thirdPartyPay
+		
+		
+		If( Ucase(objCons.sConsType) = "MATRIX"  ) Then
+			is_MATRIX = True
+		Else
+			is_MATRIX = False
+		End If
+' *	We are going to need the docShell just placed into
+' *	Global classes if this is a matrix consultant.
+		If is_Matrix Then
+			sType = gClasses.checkClass( "docShell" )
+			If( Instr(sType, "DOCUMENT")>0 ) Then
+				Set docShell = gClasses.getDOCClass( "docShell" )
+			Else
+				Error 2005, "The Matrix Memory Shell was not found"
+			End If
+		End If		
+' *	Set all the fields that are defined by the consultant transaction record.
+		If is_MATRIX Then
+			docEng.CandBusType = docShell.CandBusType(0)
+			docEng.CandType = docShell.CandType(0)
+			docEng.CandIncType = docShell.CandIncType(0)
+			docEng.CandBIllID = docShell.CandBillID(0)	
+		Else
+			Set consProf = objCons.getConsultantProfile
+			docEng.CandBusType = consProf.CandBusType(0)
+			docEng.CandType = consProf.CandType(0)
+			docEng.CandIncType = consProf.CandIncType(0)
+			docEng.CandBIllID = consProf.CandBillID(0)	
+		End If
+		
+		
+		sType = gClasses.checkClass( "docAJCClntBill" )
+		If( Instr(sType, "DOCUMENT")>0 ) Then
+			Set docClientBill = gClasses.getDOCClass( "docAJCClntBill" )		
+		End If
+		
+		
+		docEng.VendVMSId = Cstr(objCons.getFieldValue("VENDVMSID" ) )
+		docEng.deptCode = Cstr(objCons.getFieldValue("DEPTCODE" ) )
+		docEng.costCenterCode = Cstr(objCons.getFieldValue("COSTCENTERCODE" ) )
+' *	Set all the fields that are defined by the client bill record.
+		If( objCons.sConsType = "MATRIX" ) Then
+' *	Set all the fields that are defined by global variables.
+			docEng.CandLastName = docShell.CANDLASTNAME(0)
+			docEng.CandFirstName = docShell.CANDFIRSTNAME(0)
+			docEng.CandVMSID = docShell.CANDVMSID(0)
+			docEng.ProjOpenDate = engStart.DateOnly
+			docEng.ProjStartDate = docShell.projStartDate(0)
+			docEng.ProjFiscalYear = docShell.projFiscalYear(0)
+			docEng.OfficeNum = docShell.OFFICENUM(0)
+			'docEng.ProjComment1 =  docShell.COMMENT1(0)
+			docEng.ProjComment2 = docShell.COMMENT2(0)
+			
+			docEng.CandBusType = docShell.CandBusType(0)
+			docEng.CandType = docShell.CandType(0)
+			docEng.CandIncType = docShell.CandIncType(0)
+			docEng.CandBIllID = docShell.empNum(0)
+			docEng.ClntName = docShell.CustName(0)
+			docEng.ClntBillID = docShell.custNum(0)
+			docEng.ClntInvName = docShell.CustInvName(0)	
+			docEng.ClntContactEmail = docShell.projEmail(0)
+			docEng.ClntDiscountPct = docShell.DiscountPct(0)  
+			docEng.ClntBillFrequency = docShell.BillFrequency(0)
+			docEng.ClntPayCycleDay = docShell.PayCycleDay(0)
+			docEng.ClntKey = docShell.ClntKey(0)
+			docEng.ClntTBSort = docClientBill.ClntMgSvcsSort(0)
+			docEng.ClntPayCycle = docShell.PayCycle(0)
+			docEng.JOOwner = docShell.salesAssociate(0)
+			docEng.JOOwnerID = docShell.salesAssociateID(0)
+			docEng.CandPrimState = docShell.primState(0)
+			docEng.BillControl = docShell.billControl(0)
+			docEng.BillStatus = docShell.billStatus(0)
+			
+			docEng.clntLOB = docShell.clntLOB(0)
+			docEng.clntMatrixRegion = docShell.clntMatrixRegion(0)
+			docEng.projID = docShell.projID(0)
+			docEng.clntMasterProject = docShell.clntMasterProject(0)
+			docEng.clntCurrency = docShell.clntCurrency(0)
+			docEng.poNumber = docShell.poNumber(0)	
+		Else
+' *	Set all the fields that are defined by global variables.
+			docEng.CandLastName = Cstr(objCons.getFieldValue("CANDLASTNAME" ) )
+			docEng.CandFirstName = Cstr(objCons.getFieldValue("CANDFIRSTNAME" ) )
+			docEng.CandVMSID = Cstr(objCons.getFieldValue("CANDVMSID" ) )
+			docEng.ProjOpenDate = engStart.DateOnly
+			docEng.ProjStartDate = engStart.DateOnly
+			docEng.ProjFiscalYear = Year(engStart.DateOnly)
+			docEng.officeNum = docClientBill.officeNum(0)
+' *	docEng.ProjComment1 =  Cstr(objCons.getFieldValue( "COMMENT1" ) )
+			docEng.ProjComment2 = Cstr(objCons.getFieldValue( "COMMENT2" ) )
+			
+			docEng.CandPrimState = objCons.getFieldValue("CLNTPRIMARYSTATE" )
+			docEng.ClntName = docClientBill.ClntName(0)
+			docEng.ClntBillID = docClientBill.ClntBillID(0)
+			docEng.ClntInvName = docClientBill.ClntInvName(0)
+			docEng.ClntContactEmail = docClientBill.ClntContactEmail(0)
+			docEng.ClntDiscountPct = docClientBill.ClntDiscountPct(0)  
+			docEng.ClntBillFrequency = docClientBill.ClntBillFrequency(0)
+			docEng.ClntPayCycleDay = docClientBill.ClntPayCycleDay(0)
+			docEng.ClntKey = docClientBill.ClntKey(0)
+			docEng.ClntTBSort = docClientBill.ClntMgSvcsSort(0)
+			docEng.ClntPayCycle = docClientBill.ClntPayCycle(0)
+			docEng.JOOwner = docClientBill.PSDAssoc(0)
+			docEng.JOOwnerID = docClientBill.PSDAssocID(0)
+			docEng.BillControl = billControl
+			docEng.BillStatus = billStatusLite
+			
+			docEng.clntLOB = docClientBill.clntLOB(0)
+			docEng.clntMatrixRegion = docClientBill.clntMatrixRegion(0)
+			docEng.clntMatrixMarket = docClientBill.clntMatrixMarket(0)
+			docEng.clntMasterProject = docClientBill.clntMasterProject(0)
+			docEng.clntCurrency = docClientBill.clntCurrency(0)
+			docEng.poNumber = docClientBill.poNumber(0)
+			docEng.clntSalesTaxSchedule = docClientBill.clntSalesTaxSchedule(0)
+' *	2005.12.06 -raw- changed SalesTaxClass per Mark Green			
+' *	docEng.clntSalesTaxClass = docClientBill.clntSalesTaxClass(0)
+			docEng.clntSalesTaxClass = "Non-Taxable"
+			docEng.clntSalesTaxState = docClientBill.clntSalesTaxState(0)
+			docEng.clntSalesTaxLocale = docClientBill.clntSalesTaxLocale(0)
+		End If
+		docEng.ClntBillFormat = docClientBill.ClntBillFormat(0)
+		If( objCons.sConsType = "MATRIX" ) Then
+			docEng.projEngageCode = docShell.engCode(0)
+			docEng.mas90projID = docShell.mas90projID(0)
+		Else
+' *	We need to increment the project engage code on the client bill
+' *	record before we add it to the project transaction document.
+			engCode = Cint(docClientBill.ClntEngageCode(0)) + 1
+			docClientBill.ClntEngageCode = Fulltrim(Cstr(engCode))
+			Call docClientBill.Save(True, False, True)
+			docEng.ProjEngageCode = Format$(Fulltrim(Cstr(engCode)), "0000")
+			If docEng.HasItem("ProjEngageCode") And docEng.HasItem("clntBillID") Then
+				If Not(docEng.ProjEngageCode(0)="") And Not(docEng.clntBillID(0)="") Then
+					docEng.mas90ProjID = docEng.clntBillID(0) + "-" + _
+					docEng.ProjEngageCode(0)
+				End If
+			End If
+		End If
+		
+		
+		sType = gClasses.checkClass( "VEND-" + Cstr(objCons.getFieldValue("VENDVMSID") ) )
+		If( Instr(sType, "DOCUMENT")>0 ) Then
+			Set docVendorPay = gClasses.getDOCClass( "VEND-" + _
+			Cstr(objCons.getFieldValue("VENDVMSID") ) )		
+		End If
+		
+' *	Set all the fields that are defined by the vendor pay record.
+		If( objCons.sConsType = "MATRIX" ) Then
+			docEng.VendName = docShell.vendName(0)
+' *	docEng.ClntDivision = docShell.Division(0)
+' *	docEng.ClntVendID = docShell.VendID(0)	
+			docEng.ClntAPTerms = docShell.APTerms(0)	
+			docEng.Clnt30DayVend = docShell.Vend30Day(0)	
+			docEng.clntdba = docShell.clntdba(0)
+			docEng.vendCurrency = docShell.clntCurrency(0)
+			docEng.clntDivision = docShell.clntDivision(0)
+			docEng.clntVendID = docShell.clntVendID(0)
+			docEng.clntMinorityClass = docShell.clntMinorityClass(0)
+			docEng.clntMinorityCert = docShell.clntMinorityCert(0)
+			docEng.projID = docShell.projID(0)			
+			docEng.projName = docShell.projName(0)			
+		Else
+			docEng.VendName = docVendorPay.ClntName(0)
+			docEng.ClntDivision = docVendorPay.ClntDivision(0)
+			docEng.ClntVendID = docVendorPay.ClntVendID(0)	
+			docEng.ClntAPTerms = docVendorPay.ClntAPTerms(0)	
+			docEng.Clnt30DayVend = docVendorPay.Clnt30DayVend(0)
+			docEng.clntdba = docVendorPay.clntdba(0)
+			docEng.vendCurrency = docVendorPay.clntCurrency(0)
+			docEng.clntMinorityClass = docVendorPay.clntMinorityClass(0)
+			docEng.clntMinorityCert = docVendorPay.clntMinorityCert(0)
+			If docClientBill.HasItem("ClntBillSeparate") Then
+				sWk = docClientBill.ClntBillSeparate(0)
+				Select Case Ucase(sWk)
+				Case "YES","Y"
+					docEng.projName = docEng.candLastName(0) + ", " + _
+					docEng.candFirstName(0)
+					docEng.projID = docEng.projEngageCode(0)
+				Case "NO","N"
+					docEng.projName = docClientBill.projName(0)
+					docEng.projID = docClientBill.projID(0)
+				End Select
+			End If
+		End If		
+		
+		
+		sType = gClasses.checkClass( "docMSClient" )
+		If( Instr(sType, "DOCUMENT")>0 ) Then
+			Set docMSClient = gClasses.getDOCClass( "docMSClient" )		
+		End If		
+		
+' *	Set all the fields that are defined by the managed services client profile.
+		
+		docEng.VendNameOth = docMSClient.VMSVendName(0)
+		docEng.ClntDivisionOth = docMSClient.VMSDivision(0)
+		docEng.ClntVendIdOth = docMSClient.VMSVendId(0)
+		docEng.ClntAPTermsOth = docMSClient.VMSAPTerms(0)
+		
+		sType = gClasses.checkClass( "docProfile" )
+		If( Instr(sType, "DOCUMENT")>0 ) Then
+			Set profDoc = gClasses.getDOCClass( "docProfile" )		
+		End If
+		
+		If( Not( objCons.sConsType = "MATRIX" ) ) Then
+' *	Set all the fields that are generated from the lookup database.
+			docEng.TransID = generateID(profDoc, "TransID", "Transaction ID")
+			docEng.AJCProjID = generateID(profDoc, "AJCProjID", "AJC Project ID")	
+		End If
+		
+		is_Engagement = True
+		is_initialized = True
+		Exit Sub
+newEngagementErh:
+		Stop
+		is_initialized = False
+		fWriteLog filterLog, "ERROR" , sRoutineName + " Line " + Cstr(Erl) + " : " + Error$, 0
+		Exit Sub
+' *	***************************************
+' * 	</NEW_ENGAGEMENT>
+' *	***************************************
+	End Sub
+	
+	Function engagementTotals As Variant
+' *	***************************************
+' *	<STANDARD_SETUP_BLOCK>
+		Dim sRoutineName As String
+		sRoutineName = "EngagementClass.engagementTotals"
+' *	</STANDARD_SETUP_BLOCK>
+' *	***************************************
+		On Error Goto engagementTotalsErh
+		Dim arryTotals(4) As Double
+		Dim transCounter As Double
+		Dim TSACnt As Double
+		Dim TSCnt As Double
+		Set engagementTotals = Nothing
+		'0-BillTotal
+		'1-Hrs
+		'2-Transactions
+		'3-TSA Count
+		'4-TS Count
+		Forall tra In lstTransactions
+			transCounter = transCounter+1
+			If tra.TType="TSA" Then
+				TSACnt = TSACnt + 1
+				arryTotals(3) = TSACnt
+			Else
+				TSCnt = TSCnt + 1
+				arryTotals(4) = TSCnt
+			End If
+			arryTotals(0) = Cdbl(arryTotals(0)) + tra.grossBillTotal
+			arryTotals(1) = tra.getTransHours("ALL")
+			arryTotals(2) = transCounter
+		End Forall
+		engagementTotals = arryTotals
+		Exit Function
+engagementTotalsErh:
+		Set engagementTotals = Nothing
+		fWriteLog filterLog, "ERROR" , sRoutineName + " Line " + Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+' *	<TRANSACTION_GETSET_FUNCTIONS>
+	Function buildTransaction( objCons As consultantBuilder ) As transaction
+		On Error Goto buildTransactionErh
+		Dim keys As Variant
+		Dim key As String
+		Dim is_Match As Boolean
+		Dim is_goodKeys As Boolean
+		is_GoodKeys = True
+		Dim iKeyCtr As Integer
+		Dim curTransaction As transaction
+' *	see if it is in our repository for this consultant
+		iKeyCtr = 0
+		key = objCons.getFieldValue("VMSTRANSID")
+		If( Iselement( lstTransactions( Cstr(key) ) ) ) Then 
+			Set curTransaction = lstTransactions( key )
+		Else
+			Set curTransaction = New Transaction( objCons, docEng )
+			Set buildTransaction = curTransaction
+			'Set lstTransactions( key ) = curTransaction
+		End If
+		Call curTransaction.insertTransactionDocument(docShell)
+		Set lstTransactions(key) = curTransaction
+		Exit Function
+buildTransactionErh:
+		Set buildTransaction = Nothing
+		fWriteLog filterLog, "ERROR", "ERROR in engagement.buildTransaction Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function queryTransaction(sKey As String) As Boolean
+		On Error Goto queryTransactionErh
+		queryTransaction = False		
+' *	see if it is in our repository for this engagement
+		If( sKey = "" ) Then Error 2005, "TransactionID Key is empty"
+		If( Iselement( lstTransactions( sKey ) ) ) Then 
+			queryTransaction = True
+		End If
+		Exit Function
+queryTransactionErh:
+		queryTransaction = False
+		fWriteLog filterLog, "ERROR", "ERROR in project.queryTransaction Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function		
+	End Function
+	Function getTransaction(sKey As String) As transaction
+		On Error Goto getTransactionErh
+' *	see if it is in our repository for this consultant
+		If( sKey = "" ) Then
+			Error 2005, "TransactionID Key is empty"
+		End If
+		
+		If( Iselement( lstTransactions( Cstr(sKey) ) ) ) Then 
+			Set getTransaction = lstTransactions( skey )
+		Else
+			Set getTransaction = Nothing
+		End If
+		Exit Function
+getTransactionErh:
+		fWriteLog filterLog, "ERROR", "ERROR in engagement.getTransaction Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Set getTransaction = Nothing
+		Exit Function		
+	End Function
+	Function updateTransaction( objCons As consultantBuilder ) As Boolean
+		On Error Goto updateTransactionErh
+		updateTransaction = False
+		Dim key As String
+		Dim sType As String
+		Dim curTrans As transaction
+		Dim is_Match As Boolean
+		If objCons Is Nothing Then Error 2005, "No transaction passed in"
+		key = Cstr(objCons.getFieldValue("VMSTRANSID"))
+		If( key = "" ) Then Error 2005, "The transactionID is not usable(" + key + ")"
+		If( Iselement( lstTransactions( key ) ) ) Then 
+			Set curTrans = lstTransactions(key)
+		Else
+			Error 2005, "Failed to Update non-existent Transaction(" + key + ")"
+		End If
+		Call curTrans.updateTransTables( objCons )
+		updateTransaction = True
+		Exit Function
+updateTransactionErh:
+		updateTransaction = False
+		fWriteLog filterLog, "ERROR", "ERROR in engagement.updateTransaction Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function		
+	End Function
+' * **********************************************************
+' *		<FINALIZE TRANSACTIONS>
+' * **********************************************************	
+	Function finalizeTransactions As Boolean
+' *	If properly instantiated, every TSA and Matrix shell will
+' *	have a document to turn into a TSA or TS, Filter TS docs
+' *	Will need to be built and loaded into the MSTE database.
+		Dim logString As String
+		Dim dbWkTE As NotesDatabase
+		Dim is_Error As Boolean
+		Dim errCnt As Integer
+		Dim wkTS As NotesDocument
+		Dim sType As String
+		is_Error = False
+		Dim is_Saved As Boolean
+		On Error Goto finalizeTransactionsErh
+		Forall tr In lstTransactions
+			If( is_MATRIX ) Then
+				sType = gClasses.checkClass( "dbProdTE" )
+				If( Instr(sType, "DATABASE")>0 ) Then
+					Set dbWkTE = gClasses.getDBClass( "dbProdTE" )		
+				End If
+			Else
+				sType = gClasses.checkClass( "dbMSTE" )
+				If( Instr(sType, "DATABASE")>0 ) Then
+					Set dbWkTE = gClasses.getDBClass( "dbMSTE" )		
+				End If
+			End If
+			If( tr.TType = "TSA" ) Then
+				Call tr.updateTransFromEngagement(docEng)
+				Set wkTS = tr.finalizeTransactionDocument
+				wkTS.form = tr.TType
+				is_Saved = wkTS.Save( True,False,True )
+				If is_Saved = False Then
+					logString = "TSA Document did not save for transaction " + _
+					wkTS.vmsTransID(0)
+					gReport.aggregateData logString, "TSAERR"
+				End If
+			Else
+				If( is_MATRIX = False ) Then
+' * NON MATRIX TS TRANSACTIONS GET A DOCUMENT NOW
+					Set wkTS = New NotesDocument(dbWkTE)	
+					Call tr.insertTransactionDocument( wkTS )
+					wkTS.form = "TS"
+				End If	
+				If( is_MATRIX ) Then Stop
+				Call tr.applyDefaultValues
+				Call tr.updateTransFromEngagement( docEng )
+				Set wkTS = tr.finalizeTransactionDocument
+				wkTS.form = tr.TType
+				wkTS.ComputeWithForm True, False 
+				is_Saved = wkTS.Save( True,False,True )
+				If is_Saved = False Then
+					logString = "TS Document did not save for transaction " + _
+					wkTS.vmsTransID(0)
+					gReport.aggregateData logString, "TSERR"
+				End If
+			End If
+' *	1. Calculate all totals
+' *	2. Apply fields from engagement
+' *	3. Commit to disk
+		End Forall
+		Exit Function
+finalizeTransactionsErh:
+		finalizeTransactions = False
+		fWriteLog filterLog, "ERROR", "ERROR in engagement.finalizeTransactions Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+' * **********************************************************
+' *		</FINALIZE TRANSACTIONS>	
+' * **********************************************************
+' *	</TRANSACTION_GETSET_FUNCTIONS>	
+	Function hasEngagement As Boolean
+		hasEngagement = is_Engagement
+	End Function
+	Function returnDoc As NotesDocument
+		Set returnDoc = docEng
+	End Function
+	Sub setDoc( doc As NotesDocument )
+		Set docEng = doc
+	End Sub
+	Sub flush
+		
+	End Sub
+	Sub delete
+		
+	End Sub
+End Class
+
+Public Class transaction
+'	****************************************************
+'	****************************************************
+'				TRANSACTION
+'	****************************************************
+'	****************************************************
+%REM
+/*CREATED: 2005.07.26 by Rich Wheadon
+ *PURPOSE: Create TS or TSA record based on gathered transaction lines from the
+ *	import file. This is last stop shopping and all data previously compiled
+ *	will come into this object.
+%END REM
+	Public timePeriodstart As notesDateTime
+	timePeriodend As notesDateTime
+	startBound As Integer
+	endBound As Integer
+	firstWeek As Integer
+	transDayHeading( 1 To 37 ) As String
+	transHoliday(1 To 37) As String
+	transDate(1 To 37) As notesDateTime 'DATE
+	transDayHrs(1 To 37) As Double
+	transWeek(1 To 66) As Integer
+	transWeekRegHrs(1 To 6) As Double
+	transWeekOTHrs(1 To 6) As Double
+	transTotRegHrs(1) As Double
+	transTotOTHrs(1) As Double
+	weekDays(1 To 7) As String
+	payRate As Double
+	billRate As Double
+	invAmt As Double
+	grossBillAmt As Double
+	Public grossBillTotal As Double
+	grossPayTotal As Double
+	grossPayAmt As Double
+	gross3PPayAmt As Double
+	grossMATRIXAmt As Double
+	grossComBillTotal As Double
+	grossComBillAmt As Double
+	weekNum1 As Integer
+	weekNum2 As Integer
+	weeknum3 As Integer
+	weeknum4 As Integer
+	weeknum5 As Integer
+	weeknum6 As Integer
+	is_Init As Boolean
+	lstVals As Variant
+	lstDefaultVals As Variant
+	Public payCycle As String
+	Public payCycleDayNum As Integer
+	Public payCycleDay As String
+	is_MATRIX As Boolean
+	Public transRecordNo As Long
+	Public TType As String
+	Public arryTransSource() As String
+	docTransaction As NotesDocument
+	Function getTransHours( hType As String ) As Double
+		If Ucase(hType) = "REG" Then getTransHours = transTotRegHrs(1)
+		If Ucase(hType) = "OT" Then getTransHours = transTotOTHrs(1)
+		If Ucase(hType) = "ALL" Then
+			getTransHours = transTotRegHrs(1) + transTotOTHrs(1)
+		End If
+	End Function
+	Sub new( objCons As consultantBuilder, docEng As NotesDocument )
+		On Error Goto newTransactionErh
+		Dim is_OK As Boolean
+		Dim sType As String
+		Dim ndtWorkDate As NotesDateTime
+		Dim iDiff As Integer
+		Dim iSlot As Integer
+		Dim iWDSlot As Integer
+		transRecordNo = Clng(Cstr(objCons.lRecordNo) )
+		Redim Preserve arryTransSource(0)
+		If( Ucase(objCons.sConsType) = "MATRIX"  ) Then
+			is_MATRIX = True
+		Else
+			is_MATRIX = False
+		End If
+		is_OK = False
+		weekDays(1)="Sun"
+		weekDays(2)="Mon"
+		weekDays(3)="Tue"
+		weekDays(4)="Wed"
+		weekDays(5)="Thu"
+		weekDays(6)="Fri"
+		weekDays(7)="Sat"
+		billRate = objCons.getFieldValue("BILLRATE")
+' * 2005.08.16 - Removed payrate plug per Karin/Ryan in QA
+' *		If is_MATRIX = False Then payRate = objCons.getFieldValue("BILLRATE")
+		payCycle = Cstr(docEng.clntpayCycle(0))
+		payCycleDay = Cstr(docEng.clntpayCycleDay(0))
+		Select Case Ucase(Cstr(payCycleDay))
+		Case "SUNDAY" , "SUN"
+			PayCycleDayNum = 1
+			firstWeek = 1
+		Case "MONDAY" , "MON"
+			PayCycleDayNum = 2	
+			firstWeek = 1
+		Case "TUESDAY" , "TUE"
+			PayCycleDayNum = 3
+			firstWeek = 2
+		Case "WEDNESDAY" , "WED"
+			PayCycleDayNum = 4
+			firstWeek = 2
+		Case "THURSDAY" , "THU"
+			PayCycleDayNum = 5
+			firstWeek = 2
+		Case "FRIDAY" , "FRI"
+			PayCycleDayNum = 6
+			firstWeek = 2
+		Case "SATURDAY" , "SAT"
+			PayCycleDayNum = 7
+			firstWeek = 2
+		Case Else
+			payCycleDayNum = 1
+			firstWeek = 1
+		End Select
+		
+		If( Cstr(objCons.getFieldValue("VMSTRANSID"))= _
+		Cstr(objCons.getFieldValue("VMSORIGTRANSID")) ) Then
+			sType = "TS"
+			is_OK = True
+		Else
+			sType = "TSA"
+			is_OK = True
+		End If
+		If( is_OK = False ) Then Error 2005, "Invalid transaction type."
+		TType = sType
+' *	LOAD UP PRIMARY VALUES
+		'Set timePeriodEnd = New NotesDateTime( objCons.getFieldValue("ENDDATE") )
+		Set timePeriodEnd = New NotesDateTime( Cstr( objCons.getFieldValue("ENDDATE") ) )
+		Set timePeriodStart = New NotesDateTime( timePeriodEnd.DateOnly )
+		Call timePeriodStart.AdjustDay(-6)
+		startBound = Weekday( Cstr(timePeriodStart.DateOnly) )
+' *	LOAD UP HEADERS FOR The time period
+		iSlot = startBound
+		iWDSlot = Weekday( timeperiodStart.DateOnly )
+		Dim iCtr As Integer
+		Dim WkDT As NotesDateTime
+		Set wkDT = New NotesDateTime( timeperiodStart.DateOnly )
+		While wkDT.TimeDifference(timePeriodEnd) <= 0
+			transDayHeading(iSlot) = weekDays(iWDSlot)
+			transDayHrs(iSlot) = Cdbl(transDayHrs(iSlot)) + 0			
+			Set transDate(iSlot) = New NotesDateTime(wkDT.DateOnly)
+			iWDSlot = iWDSlot + 1
+			iSlot = iSlot + 1
+			If iWDSlot > 7 Then
+				iWDSlot = 1
+			End If
+			Call wkDT.AdjustDay(1)
+		Wend
+		endBound = iSlot - 1
+		lstVals = objCons.getAllFieldValues
+		
+		is_Init = True		
+		Exit Sub
+newTransactionErh:
+		is_Init = False
+		fWriteLog filterLog, "ERROR", "ERROR in transaction.NEW Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+	End Sub
+	Function appendRecord( sRec As String ) As Boolean
+		On Error Goto appendRecordErh
+		appendRecord = False
+		Dim ub As Integer
+		Dim src As String
+		Dim presrc As String
+		src = Cstr( sRec ) 'Copy
+		If(Isarray(arryTransSource)) Then
+			ub = Ubound(arryTransSource)
+			Redim Preserve arryTransSource( ub + 1 )
+			arryTransSource(ub+1) = src
+		Else
+			Redim arryTransSource(0)
+			arryTransSource(0) = src
+		End If
+		appendRecord = True
+		Exit Function
+appendRecordErh:
+		appendRecord = False
+		fWriteLog filterLog, "ERROR", "ERROR in transaction.appendRecord Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	Sub loadDefaultValues( lstD As Variant )
+		lstDefaultVals = lstD
+	End Sub
+	Function applyDefaultValues As Boolean
+		If( Islist(lstDefaultVals) ) Then
+			Forall lv In lstDefaultVals
+				Call docTransaction.ReplaceItemValue( Listtag(lv), lv )
+			End Forall
+		End If
+	End Function
+	Function setCreateTransField( sFldName As String, vVal As Variant ) As Boolean
+		On Error Goto setCreateTransFieldErh
+		setCreateTransField=False
+		docTransaction.ReplaceItemValue sFldName,  vVal
+		setCreateTransField=True
+setCreateTransFieldErh:
+		setCreateTransField = False
+		fWriteLog filterLog, "ERROR", "ERROR in transaction.setCreateTransField Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	Function updateTransTables( objCons As consultantBuilder ) As Boolean
+		On Error Goto updateTransTablesErh
+		updateTransTables = False
+		Dim ndtWorkDate As NotesDateTime
+		Dim iDiff As Integer
+		Dim iSlot As Integer
+		Dim iWDSlot As Integer
+		Dim ndtWorkDateOnly As notesDateTime
+		Set ndtWorkDate = New NotesDateTime( Cstr(objCons.getFieldValue("WORKDATE") ) )
+		Set ndtWorkDateOnly = New NotesDateTime(Cstr(ndtWorkdate.DateOnly))
+		iDiff = Cint((((ndtWorkDateOnly.TimeDifference( timePeriodStart ))/24)/60)/60)
+		iSlot = startBound + iDiff
+		iWDSlot = Weekday( ndtWorkDateOnly.DateOnly )
+		transDayHeading(iSlot) = weekDays(iWDSlot)
+		transDayHrs(iSlot) = Cdbl(transDayHrs(iSlot)) + Cdbl(objCons.getFieldValue("HOURS"))
+		Set transDate(iSlot) = New NotesDateTime(ndtWorkDateOnly.DateOnly)
+		Dim vHrs As Double
+		Dim vWkHrs As Double
+		Dim vWkOTHrs As Double
+		Dim iWkSlot As Integer
+		vHrs = Cdbl(objCons.getFieldValue("HOURS"))
+		If iSlot < 8 Then
+			iWkSlot = 1
+		Elseif iSlot < 15 Then
+			iWkSlot = 2
+		Elseif iSlot < 22 Then
+			iWkSlot = 3
+		Elseif iSlot < 29 Then
+			iWkSlot = 4
+		Elseif iSlot < 36 Then
+			iWkSlot = 5
+		End If
+		vWkHrs = transWeekRegHrs(iWkSlot)
+		vWkOTHrs = transWeekOTHrs(iWkSlot)
+		If vWkHrs < 40 Then
+			If (vWkHrs + vHrs)>40 Then
+				transWeekRegHrs(iWkSlot) = 40
+				transWeekOTHrs(iWkSlot) = ( vWkHrs + vHrs ) - 40
+				transTotRegHrs(1) = transTotRegHrs(1) + _
+				( vHrs - transWeekOTHrs(iWkSlot))
+				transTotOTHrs(1) = transTotOTHrs(1) + transWeekOTHrs(iWkSlot)
+			Else
+				transTotRegHrs(1) = transTotRegHrs(1) + ( vHrs )
+			End If
+		Else
+			transWeekOTHrs(iWkSlot) = vWkOTHrs + vHrs
+			transTotOTHrs(1) = transTotOTHrs(1) + vHrs
+		End If
+		grossBillTotal = grossBillTotal + Cdbl(objCons.getFieldValue("GROSSBILLAMT"))
+		grossBillAmt = grossBillAmt + Cdbl(objCons.getFieldValue("GROSSBILLAMT"))
+		invAmt = invAmt + Cdbl(objCons.getFieldValue("GROSSPAYAMT"))
+		gross3PPayAmt = gross3PPayAmt + Cdbl(objCons.getFieldValue("GROSSTHIRDPARTYPAYAMT"))
+		grossMatrixAmt = grossMatrixAmt + Cdbl(objCons.getFieldValue("GROSSMATRIXAMT"))
+		grossComBillTotal = grossComBillTotal + Cdbl(objCons.getFieldValue("GROSSBILLAMT"))
+		grossComBillAmt = grossComBillAmt + Cdbl(objCons.getFieldValue("GROSSBILLAMT"))
+' *	THINGS WE DON'T TOUCH ON THE MATRIX FILE
+		If( is_MATRIX=False ) Then
+			grossPayTotal = grossPayTotal + Cdbl(objCons.getFieldValue("GROSSPAYAMT"))
+			grossPayAmt = grossPayAmt + Cdbl(objCons.getFieldValue("GROSSPAYAMT"))
+		End If
+		updateTransTables = True
+		Exit Function
+updateTransTablesErh:
+		updateTransTables = False
+		fWriteLog filterLog, "ERROR", "ERROR in transaction.updateTransTables Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function setTransWeeknums( weeknum As Integer, payCycle As String ) As Boolean
+		Select Case Weekday( timePeriodStart.DateOnly ) 
+		Case 6
+			weeknum1 = weeknum - 1
+			weeknum2 = weeknum
+			If( Ucase(payCycle) = "B" ) Then weeknum3 = weeknum + 1
+		Case 2
+			weeknum1 = weeknum
+			If( Ucase(payCycle) = "B" ) Then
+				weeknum2 = weeknum + 1
+				weeknum3 = weeknum + 2
+			End If
+		Case Else
+			weeknum1 = weeknum
+			weeknum2 = weeknum + 1
+			weeknum3 = weeknum + 2
+			weeknum4 = weeknum + 3
+			weeknum5 = weeknum + 4
+			weeknum6 = weeknum + 5
+		End Select
+	End Function
+	Sub insertTransactionDocument( docTrans As NotesDocument )
+		On Error Goto insertTransactionDocumentErh
+		Set docTransaction = docTrans
+		Exit Sub
+insertTransactionDocumentErh:
+		fWriteLog filterLog, "ERROR", _
+		"ERROR in transaction.insertTransactionDocument Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Sub
+	End Sub
+	Function finalizeTransactionDocument As notesDocument
+		On Error Goto finalizeTransactionDocumentErh
+		Dim switch As Integer
+		Dim switchCnt As Integer
+		Dim weekReg As Double
+		Dim weekOT As Double
+		Dim i As Integer
+		switchCnt = 0
+		
+' *	Put the audit trail in
+		docTransaction.originalTransSrc = arryTransSource
+' *	Preset the week fields so compute with form doesn't make it ugly
+		Dim wn As Integer
+		For wn = 1 To 6
+			Call docTransaction.ReplaceItemValue( "Week"+Cstr(wn), 0 )	
+		Next wn
+' *	Add up weekly time
+		switch = startBound + 6
+		For i = startBound To endBound
+			If i <= switch Then
+				weekReg = weekReg + transDayHrs(i)
+			Else
+				switch = switch + 7
+				switchCnt = switchCnt + 1
+				Call docTransaction.ReplaceItemValue( "Week"+Cstr(firstWeek), weekReg )
+				Call docTransaction.ReplaceItemValue( "Week"+Cstr(firstWeek)+"Reg", transWeekRegHrs(firstWeek) )
+				Call docTransaction.ReplaceItemValue( "Week"+Cstr(firstWeek)+"OT", transWeekOTHrs(firstWeek) )
+' *	transWeekRegHrs( firstWeek ) = weekReg
+' *	weekReg = 0
+				firstWeek = firstWeek +1
+			End If
+			Call docTransaction.ReplaceItemValue( "Week"+Cstr(firstWeek), weekReg )
+			transWeekRegHrs( firstWeek ) = weekReg
+			Call docTransaction.ReplaceItemValue("WD"+Cstr(i), Cstr(transDayHeading(i)))
+			Call docTransaction.ReplaceItemValue("Date"+Cstr(i), transDate(i) )
+			Call docTransaction.ReplaceItemValue("Day"+Cstr(i), transDayHrs(i) )
+		Next
+' *	Forall wt In transWeekRegHrs
+' *		transTotRegHrs(1) = transTotRegHrs(1) + Cdbl(wt)
+' *	End Forall
+		Call docTransaction.ReplaceItemValue( "weekNum1", weekNum1 )
+		Call docTransaction.ReplaceItemValue( "weekNum2", weekNum2 )
+		Call docTransaction.ReplaceItemValue( "weekNum3", weekNum3 )
+		Call docTransaction.ReplaceItemValue( "weekNum4", weekNum4 )
+		Call docTransaction.ReplaceItemValue( "weekNum5", weekNum5 )
+		Call docTransaction.ReplaceItemValue( "weekNum6", weekNum6 )
+		Dim tw As Integer
+		For tw = 1 To 6
+			Call docTransaction.ReplaceItemValue( "week"+Cstr(tw)+"Reg", transWeekRegHrs(tw) )
+			Call docTransaction.ReplaceItemValue( "week"+Cstr(tw)+"OT", transWeekOTHrs(tw) )
+		Next tw
+		Call docTransaction.ReplaceItemValue( "totRegHours", transTotRegHrs(1) )
+		Call docTransaction.ReplaceItemValue( "totOTHours", transTotOTHrs(1) )
+		Call docTransaction.ReplaceItemValue( "sheetT", (Cdbl(Cstr(transTotRegHrs(1)))+ _
+		Cdbl(Cstr(transTotOTHrs(1))) ) )
+		Call docTransaction.ReplaceItemValue( "TSReportedTotal", Cdbl(Cstr(transTotRegHrs(1))) )
+		Call docTransaction.ReplaceItemValue( "billRate", Cdbl(Cstr(billRate)))
+		Call docTransaction.ReplaceItemValue( "MASBillRate", Cdbl(Cstr(billRate)))
+		Call docTransaction.ReplaceItemValue( "grossBillAmt", grossBillAmt)
+		Call docTransaction.ReplaceItemValue( "invAmt", grossPayAmt)
+		Call docTransaction.ReplaceItemValue( "grossBillTotal", grossBillTotal)
+		Call docTransaction.ReplaceItemValue( "grossThirdPartyPayAmt", gross3PPayAmt)
+		Call docTransaction.ReplaceItemValue( "grossMATRIXAmt", grossMATRIXAmt)
+		Call docTransaction.ReplaceItemValue( "grossComBillTotal", grossComBillTotal)
+		Call docTransaction.ReplaceItemValue( "grossComBillAmt", grossComBillAmt)
+		
+		Call docTransaction.ReplaceItemValue( "invAmtOth", gross3PPayAmt )
+		Call docTransaction.ReplaceItemValue( "TransStatus", "Complete" )
+' *	THINGS WE DON'T TOUCH ON THE MATRIX FILE
+		If( is_MATRIX=False ) Then
+			Call docTransaction.ReplaceItemValue( "beginDate", timePeriodStart )
+			Call docTransaction.ReplaceItemValue( "grossPayTotal", grossPayTotal)
+			Call docTransaction.ReplaceItemValue( "grossPayAmt", grossPayAmt)
+			
+			docTransaction.CreatedBy = "MS Filter"
+		End If
+' *	APPLY ALL IMPORT FILE VALUES TO THE TRANSACTION.
+		Forall v In lstVals
+			If( is_MATRIX = False ) Then
+				Call docTransaction.ReplaceItemValue( Listtag(v), v )				
+			Else
+' *	2005.08.19 PER RYAN/KARIN IN QA, DO NOT TOUCH THESE FIELDS ON MATRIX DOCUMENTS
+' *	2005.12.22 GROSSPAYAMT added, causing issues.
+				Select Case Ucase(Listtag(v))
+				Case "GROSSBILLAMT","GROSSBILLTOTAL","PAYRATE", "GROSSPAYAMT"
+				Case Else
+					Call docTransaction.ReplaceItemValue( Listtag(v), v )
+				End Select
+			End If
+		End Forall
+		Set finalizeTransactionDocument = docTransaction
+		Exit Function
+finalizeTransactionDocumentErh:
+		Set finalizeTransactionDocument = Nothing
+		fwriteLOg filterLog, "ERROR", "ERROR:Transaction.finalizeTransactionDocument (Line " + Cstr(Erl) + _
+		") " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function loadTransactionValues( lstV List As Variant, lRECNO As Long ) As Boolean
+		On Error Goto loadTransactionValuesErh
+		lstVals = lstV
+		transRecordNo = lRecNo
+		Me.TType = "TS"
+		If( lstVals("VMSTRANSID") <> lstVals("VMSORIGTRANSID") ) Then
+			Me.TType = "TSA"
+		End If
+		loadTransactionValues = True
+		Exit Function
+loadTransactionValuesErh:
+		fwriteLOg filterLog, "ERROR", "ERROR:Transaction.loadTransactionValues (Line " + Cstr(Erl) + _
+		") " + Error$, 0
+		loadTransactionValues = False		
+		Exit Function
+	End Function
+	
+	
+	Function updateTransFromEngagement( docEngt As notesDocument ) As Boolean
+		On Error Goto updateTransFromEngagementErh
+		updateTransFromEngagement=False
+		
+		Dim tmpAuthorsItem As New NotesItem(docTransaction, "Authors", "")
+		docTransaction.Form = TType
+		docTransaction.TransCode = TType
+		docTransaction.TransAdjust = "N"
+		docTransaction.TSSource = "MS"
+		tmpAuthorsItem.IsAuthors = True 
+		Call tmpAuthorsItem.AppendToTextList("[TimeKeeper]")
+		Call tmpAuthorsItem.AppendToTextList("[IS]")
+		Call tmpAuthorsItem.AppendToTextList("[All Users]")
+		Call docTransaction.replaceItemValue("Authors", tmpAuthorsItem)
+		If( is_Matrix = False ) Then
+			docTransaction.NMControl = "Y"
+			docTransaction.BillControl = "Y"
+			docTransaction.PayControl = "N"
+			docTransaction.APControl = "Y"
+			docTransaction.APOthControl = "Y"
+			docTransaction.signed = "Y"
+			docTransaction.TSOrigination = "FILTER"
+		Else
+			docTransaction.TSOrigination = "PRODUCTION"
+		End If
+' *	******************************************************************
+' *	******************************************************************
+	' This routine fills in the header fields of a timesheet or expense sheet using information
+	' from the appropriate Project Summary document
+		docTransaction.TransStatus = "Incomplete"
+		
+' *	Fields Set from file
+		docTransaction.OfficeNum = docEngt.OfficeNum(0)
+		docTransaction.EmpName =  docEngt.CandLastName(0) +", " + docEngt.CandFirstName(0)
+		docTransaction.CandLastName = docEngt.CandLastName
+		docTransaction.CandFirstName = docEngt.CandFirstName
+		docTransaction.CandVMSId = docEngt.candVMSID(0)
+		docTransaction.ProjStartDate = docEngt.ProjStartDate(0)   
+		docTransaction.ProjEndDate = docEngt.ProjEndDate(0)
+		docTransaction.VendVMSId = docEngt.VendVMSId(0)
+		docTransaction.ClntVMSId = lstVals("CLNTVMSID")	
+		
+' *	Fields Set from Eng Record
+		docTransaction.EngCode = docEngt.ProjEngageCode(0)
+		docTransaction.AJCProjID = docEngt.AJCProjID(0)
+		docTransaction.ProjFiscalYear = docEngt.ProjFiscalYear(0)
+		docTransaction.CandType = docEngt.CandType(0)
+		docTransaction.CandBusType = docEngt.CandBusType(0)
+		docTransaction.CandIncType = docEngt.CandIncType(0)
+		docTransaction.EmpNum = docEngt.CandBillID(0)
+		docTransaction.CustNum =  docEngt.ClntBillID(0)
+		docTransaction.CustName = docEngt.ClntName(0)
+		docTransaction.SalesAssociate = docEngt.JOOwner(0)
+		docTransaction.SalesAssociateID = docEngt.JOOwnerID(0)
+		docTransaction.Comment1 = docEngt.ProjComment1(0)
+		docTransaction.Comment2 = docEngt.ProjComment2(0)
+		
+		docTransaction.ClntMgSvcs = docEngt.ClntMgSvcs(0)
+		docTransaction.ClntProjSol = docEngt.ClntProjSol(0)
+		docTransaction.PrimState = docEngt.CandPrimState(0)
+		docTransaction.MAS90ProjID = docEngt.MAS90ProjID(0)
+		docTransaction.CustInvName = docEngt.ClntInvName(0)
+		docTransaction.BillFrequency = docEngt.ClntBillFrequency(0)
+		docTransaction.PayCycle = docEngt.ClntPayCycle(0)
+		docTransaction.PayCycleDay = docEngt.ClntPayCycleDay(0)
+		docTransaction.ClntKey = docEngt.ClntKey(0)
+		docTransaction.ClntTBSort = docEngt.ClntTBSort(0)
+		docTransaction.clntDivision = docEngt.ClntDivision(0) 
+		docTransaction.clntVendID = docEngt.ClntVendID(0)
+' ********************************************************************		
+' *	The following lines disappeared/renamed during MAS500 and caused
+' *	a major regression.
+		docTransaction.Division = docEngt.ClntDivision(0) 
+		docTransaction.VendID = docEngt.ClntVendID(0)
+' ********************************************************************
+		docTransaction.VendName = docEngt.VendName(0)
+		docTransaction.Vend30Day = docEngt.Clnt30DayVend(0)
+		docTransaction.APTerms = docEngt.ClntAPTerms(0)
+		docTransaction.APTermsOth = docEngt.ClntAPTermsOth(0)
+		docTransaction.DiscountPct = docEngt.ClntDiscountPct(0)
+		
+		docTransaction.clntMasterProject = docEngt.ClntMasterProject(0)
+		docTransaction.projID = docEngt.projID(0)
+		docTransaction.poNumber = docEngt.poNumber(0)
+		docTransaction.projName = docEngt.projName(0)
+		docTransaction.clntLOB = docEngt.clntLOB(0)
+		docTransaction.clntMatrixRegion = docEngt.clntMatrixRegion(0)
+		docTransaction.clntMatrixMarket = docEngt.clntMatrixMarket(0)
+		docTransaction.vendCurrency = docEngt.vendCurrency(0)
+		docTransaction.clntDBA = docEngt.clntDBA(0)
+		docTransaction.clntMinorityClass = docEngt.clntMinorityClass(0)
+		docTransaction.clntMinorityCert = docEngt.clntMinorityCert(0)
+' *	docTransaction. = docEngt.(0)
+' *	Fields getting Constant values
+		docTransaction.ClntMgSvcsType = "T"
+		docTransaction.ClntProjSolType = ""
+		docTransaction.ContName = "" 'Hiring Manager
+		docTransaction.VendVMSType = docEngt.candVMSType(0)
+		docTransaction.ClntVMSType = docEngt.candVMSType(0)
+		docTransaction.CandVMSType = docEngt.candVMSType(0)
+		docTransaction.ProjVMSType = docEngt.candVMSType(0)
+		docTransaction.InternalPlacement = 0
+		docTransaction.OrigJOOwner = "Y"
+		
+' *	Add in blank fields so that the export from M&T can get a handle on all needed info.
+		If is_MATRIX = False Then
+			docTransaction.ThirdPartyRef = docEngt.ThirdPartyRef(0)
+			docTransaction.PayRate = 0	
+			docTransaction.GrossPayAmt = 0
+			docTransaction.GrossOTPayAmt = 0
+			docTransaction.OthPayAmt = 0
+			docTransaction.OthPayRate = 0
+			If docEngt.ThirdPartyRef(0) = "Y" Then
+				docTransaction.DivisionOth = docEngt.ClntDivisionOth(0)
+				docTransaction.VendIDOth = docEngt.ClntVendIDOth(0)
+				docTransaction.VendNameOth = docEngt.VendNameOth(0)	
+			End If
+'xxx * docTransaction.clntSalesTaxSchedule = docEngt.clntSalesTaxSchedule(0)
+'xxx * docTransaction.clntSalesTaxClass = docEngt.clntSalesTaxClass(0)
+'xxx * docTransaction.clntSalesTaxState = docEngt.clntSalesTaxState(0)
+'xxx * docTransaction.clntSalesTaxLocale = docEngt.clntSalesTaxLocale(0)
+		End If
+		docTransaction.GrossBillAmt = 0
+		docTransaction.GrossComBillAmt = 0
+		docTransaction.GrossPerDiemAmt = 0
+'xxx * IMPORTED DEFAULT HANDLES THIS docTransaction.GrossOTBillAmt = 0
+'xxx * IMPORTED DEFAULT HANDLES THIS docTransaction.GrossComOTBillAmt = 0
+'xxx * IMPORTED DEFAULT HANDLES THIS docTransaction.Week1Reg = 0
+'xxx * IMPORTED DEFAULT HANDLES THIS docTransaction.Week2Reg = 0
+'xxx * IMPORTED DEFAULT HANDLES THIS docTransaction.Week1OT = 0
+'xxx * IMPORTED DEFAULT HANDLES THIS docTransaction.Week2OT = 0
+		
+	'Fields I don't think I need but not sure yet.
+'xxx		docTransaction.ProjActEndDate = ""
+'xxx		docTransaction.ProjPhone = ""
+'xxx		docTransaction.ProjEmail = ""
+'xxx		docTransaction.PrimLocale = ""
+		updateTransFromEngagement = True
+		Exit Function
+updateTransFromEngagementErh:
+		updateTransFromEngagement = False
+		fWriteLog filterLog, "ERROR", "ERROR in engagement.updateTransFromEngagement Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function		
+	End Function
+	
+	
+	
+	Function updateTransFromOriginal( docTrans As notesDocument )
+		On Error Goto newTransFromDocErh
+		If( docTrans Is Nothing ) Then Error 2005, "No Timesheet document passed in"
+		Dim sType As String
+		sType = Ucase( Cstr( docTrans.form(0) ) )
+		
+		Exit Function
+newTransFromDocErh:
+		is_Init = False
+		fWriteLog filterLog, "ERROR", "ERROR in engagement.newTransFromDoc Line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	Sub flush
+		
+	End Sub
+	
+	Sub delete
+		
+	End Sub
+End Class
+
+Public Class reportBuilder
+'	****************************************************
+'	****************************************************
+'				REPORTBUILDER
+'	****************************************************
+'	****************************************************
+%REM
+/*
+ *CREATED 2005.07.22 by Rich Wheadon
+ *PURPOSE Throw report strings in here for a "nice" presentation
+ *		to the agent runner.
+ */
+%END REM
+	lTSErrors As Long
+	lTSAErrors As Long
+	lTSWarns As Long
+	lTSAWarns As Long
+	lTSCtr As Long
+	lTSACtr As Long
+	lConsultantCtr As Long
+	lEngagementCtr As Long
+	arryRecipients() As String
+	sTitle As String
+	sAbstract As String
+	sInfo List As String
+	sError List As String
+	sWarning List As String
+	lstOfLists List As Variant
+	iCtr As Integer
+	sReportTemplate As String
+	sNL As String
+	ndtReportStart As NotesDateTime
+	ndtReportFinish As NotesDateTime
+	reportCntr As Long
+	Sub new( Byval title As String, Byval abstract As String, recip As Variant )
+		reportCntr = 1
+		On Error Goto newReportErh
+		Dim lstWk List As Variant
+		Dim lstMem As Variant
+		Dim sWkType As String
+		sTitle = Cstr(title)
+		sAbstract = Cstr(abstract)
+		
+		sWkType = "<TITLE>"
+		sNL = |
+		|
+		If Iselement(lstOfLists(sWkType)) Then
+			lstMem = lstOfLists(sWkType)
+			lstMem( sWkType ) = title
+			lstOfLists( sWkType ) = lstMem
+		Else
+			lstWk( sWkType ) = title
+			lstOfLists( sWkType ) = lstWk
+		End If
+		
+		sWkType = "<ABSTRACT>"
+		lstMem = ""
+		Erase lstWk 
+		
+		If Iselement(lstOfLists(sWkType)) Then
+			lstMem = lstOfLists(sWkType)
+			lstMem( sWkType ) = abstract
+			lstOfLists( sWkType ) = lstMem
+		Else
+			lstWk( sWkType ) = abstract
+			lstOfLists( sWkType ) = lstWk
+		End If
+		
+		If Isarray(recip) Then
+			Redim arryRecipients( (Lbound(recip)) To (Ubound(recip)) )
+			iCtr = Lbound(recip)
+			Forall v In recip
+				arryRecipients(iCtr) = v
+				iCtr = iCtr+1
+			End Forall
+		Else
+			Redim arryRecipients(0) 
+			arryRecipients(0) = recip
+		End If
+		Exit Sub
+newReportErh:
+		fWriteLog filterLog, "ERROR" , "ERROR in reportBuilder.NEW line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Sub
+	End Sub
+	Sub delete
+		
+	End Sub
+	Sub flush
+		
+	End Sub
+	Function aggregateData( Byval strVal As String, Byval strType As String ) As Boolean
+		reportCntr = reportCntr + 1
+		On Error Goto aggregateDataErh
+		Dim sWkType As String
+		Dim sWkVal As String
+		Dim lstWk List As Variant
+		Dim lstMem As Variant
+		sWkVal = strVal
+		sWkType = Replace( strType, "<", "" )
+		sWkType = Replace( strType, ">", "" )
+		sWkType = "<" + sWkType + ">"
+' *	we will have defined buckets and an additional catchall
+' *		buckets are individual lists of the strings (timestamp is listtag)
+' *	CLASS KEYWORDS (strType):
+' *	TSAERR, TSERR, TSACNT, TSCNT, CONSCNT, ENGCNT, TITLE, ABSTRACT,
+' *		ERROR, INFO, WARN, WARNCNT, ERRORCNT, TOTCNT, TIMESTART
+' *		TIMEFINISH
+' *	ClassKeywords must be allcap in tags for the template to work...
+' *	<TITLE> %NL This Report contains:%NL <ABSTRACT>
+		If Iselement(lstOfLists(sWkType)) Then
+			lstMem = lstOfLists(sWkType)
+			lstMem( Cstr(reportCntr) ) = sWkVal
+			lstOfLists( sWkType ) = lstMem
+		Else
+			lstWk( Cstr(reportCntr) ) = sWkVal
+			lstOfLists( sWkType ) = lstWk
+		End If
+		
+		aggregateData = True
+		Exit Function
+aggregateDataErh:
+		aggregateData = False
+		fWriteLog filterLog, "ERROR" , "ERROR in reportBuilder.aggregateData line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function buildReport( sTemplate As String ) As NotesDocument
+		On Error Goto buildReportErh
+		Dim lDuration As Long
+		Dim sTagline As String
+		Dim sFlatText As String
+		Dim sWkTemplate As String
+		Dim sWkType As String
+		Dim vWkArry As Variant 
+		Set buildReport = Nothing
+		sReportTemplate = "<TITLE>%NL<ABSTRACT>%NL*******************************%NL" + _
+		"ERRORS(<ERRORCNT>)%NL--TIMESHEETS--%NL<TSERR>%NL%NL--ADJUSTMENTS--%NL<TSAERR>" + _
+		"%NL%NL" + "ALL TYPES:%NL--(TYPE ERROR)--%NL<ERROR>%NL%NL--(WARNING)--%NL<WARN>" + _
+		"%NL%NL--(INFORMATIONAL)--%NL<INFO>"
+		
+		Set ndtReportStart = New NotesDateTime( Now )		
+' *	Template for the report is in the user keywords area., if no template then an
+' *		inline default will be used.
+		If(sTemplate = "") Then
+			sWkTemplate = sReportTemplate
+		Else
+			sWkTemplate = sTemplate
+		End If
+		
+' *	Go through the aggregatedList and apply to template
+		Forall lol In lstOfLists
+			sWkType = Listtag(lol)
+			vWkArry = lol
+			'sFlatText = flattenStringList( lol )
+			If( Instr(sWkTemplate, sWkType ) > 0 ) Then
+				sFlatText = flattenStringList( vWkArry )
+				sWkTemplate = Replace( sWkTemplate, sWkType, sFlatText )
+			End If
+		End Forall
+		sWkTemplate = Replace( sWkTemplate, "%NL", sNL )
+		
+		
+' *	Every report will show the number of seconds it took to generate the report
+		Set ndtReportFinish = New NotesDateTime( Now )
+		lDuration = ndtReportFinish.TimeDifference( ndtReportStart )
+		sTagLine = sNL + "---<END OF REPORT>---" + _
+		sNL + "This report was generated in " + Cstr(lDuration) + " seconds.---" + sNL
+		
+		Dim docReport As NotesDocument
+		Set docReport = New NotesDocument( gSession.CurrentDatabase )
+		docReport.form = "MEMO"
+		docReport.Principal = "REPORTBUILDER"
+		'docReport.from = gSession.EffectiveUserName
+		docReport.from = gSession.EffectiveUserName + " (do not reply)"
+		docReport.subject = sTitle
+		docReport.body = sWkTemplate + sTagLine
+		Set buildReport = docReport
+		Call docReport.Send( False, arryRecipients )
+		Exit Function
+buildReportErh:
+		Set buildReport = Nothing
+		fWriteLog filterLog, "ERROR" , "ERROR in reportBuilder.buildReport line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+	
+	Function flattenStringList( lstStr As Variant )
+		On Error Goto flattenStringListErh
+		Dim vList As Variant
+		vList = lstStr
+		Dim sFlat As String
+		sFlat = ""
+		If( Islist( vList ) ) Then
+			Forall sv In vList
+				sFlat = sFlat + sNL + Cstr(sv)
+			End Forall
+		End If
+		flattenStringList = Cstr(sFlat)
+		Exit Function
+flattenStringListErh:
+		fWriteLog filterLog, "ERROR" , "ERROR in reportBuilder.flattenStringList line " + _
+		Cstr(Erl) + " : " + Error$, 0
+		Exit Function
+	End Function
+End Class
+
+
+Public Class StringBuilder
+'	****************************************************
+'	****************************************************
+'				STRINGBUILDER
+'	****************************************************
+'	****************************************************
+	delimeter As String
+	beginStr As String
+	finishStr As String
+	accumulator As String
+	Sub New ( Byval sDel$, Byval sBeg$, Byval sFin$ )
+		Me.delimeter = sDel
+		Me.beginStr = sBeg
+		Me.finishStr = sFin
+	End Sub
+	
+	Sub AppendString( Byval strVal As String )
+		If( accumulator = "" ) Then
+			accumulator = strVal
+		Else
+			accumulator = accumulator + delimeter + strVal
+		End If
+	End Sub
+	Sub AppendStringLine( Byval strVal As String )
+		Dim sNL As String
+		sNL = |
+		|
+		If( accumulator = "" ) Then
+			accumulator = strVal
+		Else
+			accumulator = accumulator + sNL + strVal
+		End If
+	End Sub
+	Function getString As String
+		getString = beginStr + accumulator + finishStr
+	End Function
+	
+	Sub Flush
+		Me.delimeter = ""
+		Me.beginStr = ""
+		Me.finishStr = ""
+		Me.accumulator = ""
+	End Sub	
+	
+	Sub delete
+	End Sub
+End Class
+'	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'			END OF SCRIPT, DON'T GO BELOW HERE
+'	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
